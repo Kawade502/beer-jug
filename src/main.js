@@ -148,7 +148,8 @@ function updateCamera(w, h) {
       // 保存できなくても、この回のあいだは使える。
     }
   }
-  const [rw, rh] = turn !== 0 && portrait.h ? [portrait.w, portrait.h] : [w, h];
+  // 覚えた大きさを使うのは、ブラウザが画面をほぼ埋めているときだけ（分割した小さなウインドウでは、今の範囲に合わせる）。
+  const [rw, rh] = turn !== 0 && portrait.h && fillsScreen() ? [portrait.w, portrait.h] : [w, h];
   const aspect = rw / rh;
   // 縦長なら幅で、横長なら高さで合わせる。横長では取っ手まで入るよう少し右へずらす。
   uniforms.uTanHalf.value = Math.max(HALF_H / DIST, HALF_W / (DIST * aspect)) * (h / rh);
@@ -239,7 +240,11 @@ function screenAngle() {
   const q = reportedAngle();
   if (naturalLandscape()) return q;
   const g = tilt.state.sensor;
-  const side = fillsScreen() ? window.innerWidth > window.innerHeight : q === 90 || q === 270;
+  // 形で決めるのは、はっきり縦長か横長のときだけ（開いた折りたたみスマホのような、ほぼ正方形の画面では角度で決める）。
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const clear = Math.max(vw, vh) >= 1.25 * Math.min(vw, vh);
+  const side = fillsScreen() && clear ? vw > vh : q === 90 || q === 270;
   if (side) {
     // 横向き：どちらへ倒したかは重力の向きで決める。本体の右の辺（+x）が上なら、反時計回りに倒している。
     // 重力があいまいなら角度、それもだめなら前の値を使う。
