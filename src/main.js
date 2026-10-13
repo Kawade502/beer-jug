@@ -104,6 +104,7 @@ const st = {
   time: 0,
   started: false, // 乾杯ボタンを押したか
   locked: false, // 縦向きに固定できたか（Android の全画面）
+  locking: false, // 固定しようとしている途中か
   rotateHinted: false, // 縦向きのロックを案内したか
   notice: '',
   noticeT: 0,
@@ -121,17 +122,28 @@ const smoothstep = (a, b, x) => {
 
 // 縦向きのときの描く範囲の大きさ (CSS px)。画面を逆に回している間もこの大きさで合わせて、
 // 1mm あたりの画素数を変えない（iPhone は横向きにするとツールバーの位置が変わり、範囲の縦横比が変わるため）。
+// 横向きのまま開いたときにも使えるよう、端末ごとに覚えておく。まだ一度も縦向きで開いていなければ、今の範囲に合わせる。
+const PORTRAIT_KEY = 'beer-jug:portrait';
+const screenKey = () => `${Math.min(screen.width, screen.height)}x${Math.max(screen.width, screen.height)}`;
 const portrait = { w: 0, h: 0 };
+try {
+  const v = JSON.parse(localStorage.getItem(PORTRAIT_KEY));
+  if (v && v.key === screenKey()) Object.assign(portrait, { w: v.w, h: v.h });
+} catch {
+  // 覚えておけない環境では、縦向きになったときに測る。
+}
 
 function updateCamera(w, h) {
-  if (turn === 0 && osTurn === 0) {
+  if (touch && turn === 0 && osTurn === 0 && (portrait.w !== w || portrait.h !== h)) {
     portrait.w = w;
     portrait.h = h;
-  } else if (turn !== 0 && !portrait.h) {
-    portrait.w = Math.min(screen.width, screen.height);
-    portrait.h = Math.max(screen.width, screen.height);
+    try {
+      localStorage.setItem(PORTRAIT_KEY, JSON.stringify({ key: screenKey(), w, h }));
+    } catch {
+      // 保存できなくても、この回のあいだは使える。
+    }
   }
-  const [rw, rh] = turn !== 0 ? [portrait.w, portrait.h] : [w, h];
+  const [rw, rh] = turn !== 0 && portrait.h ? [portrait.w, portrait.h] : [w, h];
   const aspect = rw / rh;
   // 縦長なら幅で、横長なら高さで合わせる。横長では取っ手まで入るよう少し右へずらす。
   uniforms.uTanHalf.value = Math.max(HALF_H / DIST, HALF_W / (DIST * aspect)) * (h / rh);
@@ -247,7 +259,8 @@ function resize() {
   updateCamera(w, h);
 
   // iPhone は回転を止められないので、一度だけ縦向きのロックを案内する。
-  if (turn && !st.locked && !st.rotateHinted) {
+  // 固定しようとしている途中は決めない（終わったあとの resize で決める）。
+  if (turn && !st.locked && !st.locking && !st.rotateHinted) {
     st.rotateHinted = true;
     showNotice('rotate', 6);
   }
@@ -465,7 +478,12 @@ async function startCheers() {
     levelButton.hidden = !ok;
     if (!ok) showNotice('nosensor', 4);
   }
-  await lockPortrait();
+  st.locking = true;
+  try {
+    await lockPortrait();
+  } finally {
+    st.locking = false;
+  }
   resize();
 }
 cheers.addEventListener('click', startCheers);
