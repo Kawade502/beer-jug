@@ -92,7 +92,8 @@ blitScene.add(new THREE.Mesh(quad, blitMat));
 // ---------------------------------------------------------------- 状態
 
 const sound = createSound();
-const tilt = createTilt();
+// センサーの最初の値が届いたら、画面の逆回しを始める。
+const tilt = createTilt({ onFirstReading: () => resize() });
 const beer = createBeer({
   gulp: () => sound.gulp(0.8 + 0.2 * Math.random()),
   glug: (r) => sound.glug(r),
@@ -102,6 +103,8 @@ const beer = createBeer({
 const st = {
   time: 0,
   started: false, // 乾杯ボタンを押したか
+  locked: false, // 縦向きに固定できたか（Android の全画面）
+  rotateHinted: false, // 縦向きのロックを案内したか
   notice: '',
   noticeT: 0,
 };
@@ -116,10 +119,22 @@ const smoothstep = (a, b, x) => {
   return t * t * (3 - 2 * t);
 };
 
-function updateCamera() {
-  const aspect = size.w / size.h;
+// 縦向きのときの描く範囲の大きさ (CSS px)。画面を逆に回している間もこの大きさで合わせて、
+// 1mm あたりの画素数を変えない（iPhone は横向きにするとツールバーの位置が変わり、範囲の縦横比が変わるため）。
+const portrait = { w: 0, h: 0 };
+
+function updateCamera(w, h) {
+  if (turn === 0 && osTurn === 0) {
+    portrait.w = w;
+    portrait.h = h;
+  } else if (turn !== 0 && !portrait.h) {
+    portrait.w = Math.min(screen.width, screen.height);
+    portrait.h = Math.max(screen.width, screen.height);
+  }
+  const [rw, rh] = turn !== 0 ? [portrait.w, portrait.h] : [w, h];
+  const aspect = rw / rh;
   // 縦長なら幅で、横長なら高さで合わせる。横長では取っ手まで入るよう少し右へずらす。
-  uniforms.uTanHalf.value = Math.max(HALF_H / DIST, HALF_W / (DIST * aspect)) * (aspect > 0.75 ? 1 : 1);
+  uniforms.uTanHalf.value = Math.max(HALF_H / DIST, HALF_W / (DIST * aspect)) * (h / rh);
   const camX = 14 * smoothstep(0.6, 1.0, aspect);
   uniforms.uCamPos.value.set(camX, CENTER_Y, DIST);
 }
@@ -170,10 +185,19 @@ function updateUniforms() {
 
 // スマホを傾けると OS が画面を自動で横向きにするが、ジョッキはスマホ本体に貼り付いたままにしたい。
 // そこで OS が回したぶん中身（#app）を逆に回し、いつも本体の自然な向き（縦）で描く。
-// こうするとジョッキのローカル座標は端末の座標と同じになり、傾きセンサーの値をそのまま使える。
-let turn = 0; // 中身を逆に回している角度（度、反時計回り）
+// こうするとジョッキのローカル座標は本体の座標と同じになり、傾きセンサーの値をそのまま使える。
+// センサーがない間（乾杯の前や、許可されなかったとき）は、OS の回転だけが重力の手がかりなので、逆に回さない。
+let osTurn = 0; // OS が画面を回している角度（度、本体の自然な向きから反時計回り）
+let turn = 0; // 中身を逆に回している角度
 
-function screenTurn() {
+// 本体の自然な向きが横の端末（多くの Android タブレット）。そのときは逆に回さず、センサーの値のほうを回す。
+function naturalLandscape() {
+  const o = screen.orientation;
+  if (!o || typeof o.type !== 'string') return false;
+  return (o.angle % 180 === 0) === o.type.startsWith('landscape');
+}
+
+function screenAngle() {
   if (!touch) return 0; // パソコンの横長の画面はそのまま
   const o = screen.orientation;
   const a = o && typeof o.angle === 'number' ? o.angle : Number(window.orientation) || 0;
@@ -187,8 +211,17 @@ function screenTurn() {
   return q;
 }
 
+// 画面の端の余白（ノッチなど）の大きさ。env() は今の画面の上下左右で決まる。
+const insetProbe = document.createElement('div');
+insetProbe.style.cssText =
+  'position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+document.body.appendChild(insetProbe);
+const EDGES = ['top', 'right', 'bottom', 'left'];
+
 function resize() {
-  turn = screenTurn();
+  osTurn = screenAngle();
+  turn = tilt.state.sensor && !naturalLandscape() ? osTurn : 0;
+  tilt.setFrame(osTurn - turn);
   const side = turn === 90 || turn === 270;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -199,6 +232,11 @@ function resize() {
   app.style.left = `${(vw - w) / 2}px`;
   app.style.top = `${(vh - h) / 2}px`;
   app.style.transform = turn ? `rotate(${-turn}deg)` : '';
+  // 中身の上下左右は、逆に回したぶん画面の別の辺に来るので、余白もその辺のものを使う。
+  const cs = getComputedStyle(insetProbe);
+  const inset = EDGES.map((e) => parseFloat(cs.getPropertyValue(`padding-${e}`)) || 0);
+  const k = turn / 90;
+  EDGES.forEach((e, i) => app.style.setProperty(`--safe-${e}`, `${inset[(i - k + 4) % 4]}px`));
 
   size.ratio = Math.min(window.devicePixelRatio || 1, 2);
   size.w = Math.max(1, Math.round(w * size.ratio));
@@ -206,7 +244,13 @@ function resize() {
   renderer.setSize(size.w, size.h, false);
   canvas.style.width = `${w}px`;
   canvas.style.height = `${h}px`;
-  updateCamera();
+  updateCamera(w, h);
+
+  // iPhone は回転を止められないので、一度だけ縦向きのロックを案内する。
+  if (turn && !st.locked && !st.rotateHinted) {
+    st.rotateHinted = true;
+    showNotice('rotate', 6);
+  }
   stillDrawn = false;
   wake();
 }
@@ -224,13 +268,19 @@ function toApp(dx, dy) {
 async function lockPortrait() {
   const el = document.documentElement;
   if (!touch || !el.requestFullscreen || !screen.orientation || !screen.orientation.lock) return;
+  if (naturalLandscape()) return;
   try {
     await el.requestFullscreen({ navigationUI: 'hide' });
     await screen.orientation.lock('portrait');
+    st.locked = true;
   } catch {
     // 固定できなくても、逆回しで合わせるので困らない。
   }
 }
+// 全画面をやめると固定も外れる。
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) st.locked = false;
+});
 
 function render(s) {
   updateUniforms();
@@ -431,8 +481,7 @@ again.addEventListener('click', () => {
 });
 
 levelButton.addEventListener('click', () => {
-  tilt.calibrate();
-  showNotice('level', 2);
+  if (tilt.calibrate()) showNotice('level', 2);
   wake();
 });
 
@@ -499,7 +548,9 @@ window.__beer = {
     for (let i = 0; i < n; i++) simulate(sec / n);
   },
   calls: { gulp: 0, aah: 0 },
-  layout: () => ({ turn, width: app.style.width, height: app.style.height, transform: app.style.transform }),
+  layout: () => ({ turn, osTurn, width: app.style.width, height: app.style.height, transform: app.style.transform, tanHalf: +uniforms.uTanHalf.value.toFixed(4) }),
+  enableSensor: () => tilt.enableSensor(),
+  calibrateNow: () => tilt.calibrate(),
   render(s = 1) {
     updateHint();
     render(s);

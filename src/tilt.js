@@ -28,7 +28,8 @@ export function upFromOrientation(beta, gamma) {
   return [-Math.cos(b) * Math.sin(g), Math.sin(b), Math.cos(b) * Math.cos(g)];
 }
 
-export function createTilt() {
+// onFirstReading はセンサーの最初の値が届いたときに呼ぶ（main.js が画面の逆回しを始める）。
+export function createTilt({ onFirstReading } = {}) {
   const st = {
     up: [0, 1, 0], // 液面が向いている上向き（ばねで目標を追う）
     vel: [0, 0, 0],
@@ -39,27 +40,41 @@ export function createTilt() {
     pitchV: 0,
     held: false,
     keys: { left: false, right: false, up: false, down: false },
-    sensor: null, // センサーの生の上向き。使っていなければ null
+    sensor: null, // センサーの生の上向き（本体の座標）。使っていなければ null
+    frame: 0, // 中身の座標が本体に対して回っている角度（度、反時計回り）。ふつうは 0
     pitchRef: 0,
     test: null,
   };
 
   function onOrientation(e) {
     if (e.beta === null || e.gamma === null) return;
+    const first = !st.sensor;
     st.sensor = upFromOrientation(e.beta, e.gamma);
     if (st.needRef) calibrate();
+    if (first) onFirstReading?.();
   }
 
-  // 今の前後の傾きを「まっすぐ」にする。
-  // 横に倒して持っているときは前後の傾きが決まらないので、縦に持ち直すまで待つ。
+  // センサーの上向きを、中身（ジョッキ）の座標にする。
+  // スマホでは中身を本体に合わせて描くので回さない。逆回しをしないとき（自然な向きが横のタブレットなど）だけ回す。
+  function sensorLocal() {
+    const [x, y, z] = st.sensor;
+    const a = (st.frame * Math.PI) / 180;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    return [x * c - y * s, x * s + y * c, z];
+  }
+
+  // 今の前後の傾き（画面がどれだけ寝ているか）を「まっすぐ」にする。
+  // 画面の法線の成分（z）だけで決めるので、縦持ちでも横持ちでも同じ値になる。
   function calibrate() {
-    const g = st.sensor;
-    if (!g || Math.hypot(g[1], g[2]) < 0.6) {
+    if (!st.sensor) {
       st.needRef = true;
-      return;
+      return false;
     }
+    const [x, y, z] = st.sensor;
     st.needRef = false;
-    st.pitchRef = clamp(Math.atan2(g[2], g[1]), -0.5, (85 * Math.PI) / 180);
+    st.pitchRef = clamp(Math.atan2(z, Math.hypot(x, y)), -0.5, (85 * Math.PI) / 180);
+    return true;
   }
 
   // iPhone は、タップの中で許可をもらう必要がある。
@@ -87,10 +102,10 @@ export function createTilt() {
   }
 
   function sensorUp() {
-    const [x, y, z] = st.sensor;
+    const [x, y, z] = sensorLocal();
     const c = Math.cos(st.pitchRef);
     const s = Math.sin(st.pitchRef);
-    // 端末の x 軸まわりに -pitchRef 回す。乾杯したときの持ち方が「まっすぐ」になる。
+    // ジョッキの x 軸（画面の横）まわりに -pitchRef 回す。乾杯したときの持ち方が「まっすぐ」になる。
     return [x, y * c + z * s, -y * s + z * c];
   }
 
@@ -149,6 +164,9 @@ export function createTilt() {
     enableSensor,
     disableSensor,
     calibrate,
+    setFrame(deg) {
+      st.frame = deg;
+    },
     PER_PX,
     TILT_MAX,
     PITCH_MAX,

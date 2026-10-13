@@ -44,8 +44,8 @@ body {
 
 .round {
   position: absolute;
-  top: max(10px, env(safe-area-inset-top));
-  right: 12px;
+  top: max(10px, var(--safe-top, 0px));
+  right: max(12px, var(--safe-right, 0px));
   width: 40px;
   height: 40px;
   display: grid;
@@ -65,7 +65,7 @@ body {
 }
 
 .level {
-  right: 60px;
+  right: calc(max(12px, var(--safe-right, 0px)) + 48px);
 }
 
 .round:focus-visible,
@@ -100,9 +100,9 @@ body {
 
 .hint {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: max(18px, env(safe-area-inset-bottom));
+  left: max(16px, var(--safe-left, 0px));
+  right: max(16px, var(--safe-right, 0px));
+  bottom: max(18px, var(--safe-bottom, 0px));
   text-align: center;
   font-size: 15px;
   line-height: 1.7;
@@ -134,6 +134,7 @@ body {
 .hint[data-state='empty'] [data-for='empty'],
 .hint[data-state='level'] [data-for='level'],
 .hint[data-state='nosensor'] [data-for='nosensor'],
+.hint[data-state='rotate'] [data-for='rotate'],
 [data-input='touch'] .hint[data-state='ready'] [data-for='ready touch'],
 [data-input='mouse'] .hint[data-state='ready'] [data-for='ready mouse'] {
   display: inline;
@@ -167,7 +168,7 @@ body {
 .cheers {
   position: absolute;
   left: 50%;
-  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 56px);
+  bottom: calc(max(18px, var(--safe-bottom, 0px)) + 56px);
   transform: translateX(-50%);
   display: grid;
   gap: 2px;
