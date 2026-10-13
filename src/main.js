@@ -17,6 +17,7 @@ const params = new URLSearchParams(location.search);
 const testMode = params.has('test');
 const touch = matchMedia('(hover: none)').matches;
 
+const app = document.getElementById('app');
 const canvas = document.getElementById('stage');
 const hint = document.getElementById('hint');
 const errorBox = document.getElementById('error');
@@ -165,16 +166,70 @@ function updateUniforms() {
   }
 }
 
+// ---------------------------------------------------------------- 画面の向き
+
+// スマホを傾けると OS が画面を自動で横向きにするが、ジョッキはスマホ本体に貼り付いたままにしたい。
+// そこで OS が回したぶん中身（#app）を逆に回し、いつも本体の自然な向き（縦）で描く。
+// こうするとジョッキのローカル座標は端末の座標と同じになり、傾きセンサーの値をそのまま使える。
+let turn = 0; // 中身を逆に回している角度（度、反時計回り）
+
+function screenTurn() {
+  if (!touch) return 0; // パソコンの横長の画面はそのまま
+  const o = screen.orientation;
+  const a = o && typeof o.angle === 'number' ? o.angle : Number(window.orientation) || 0;
+  const q = (((Math.round(a / 90) * 90) % 360) + 360) % 360;
+  if (q === 90 || q === 270) {
+    // 横向きのときは、どちらへ倒したかを重力の向きで確かめる（ブラウザによって角度の符号が違うことがあるため）。
+    // 本体の右の辺（+x）が上を向いていれば、反時計回りに倒している。
+    const g = tilt.state.sensor;
+    if (g && Math.abs(g[0]) > 0.5) return g[0] > 0 ? 90 : 270;
+  }
+  return q;
+}
+
 function resize() {
+  turn = screenTurn();
+  const side = turn === 90 || turn === 270;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const w = side ? vh : vw;
+  const h = side ? vw : vh;
+  app.style.width = `${w}px`;
+  app.style.height = `${h}px`;
+  app.style.left = `${(vw - w) / 2}px`;
+  app.style.top = `${(vh - h) / 2}px`;
+  app.style.transform = turn ? `rotate(${-turn}deg)` : '';
+
   size.ratio = Math.min(window.devicePixelRatio || 1, 2);
-  size.w = Math.max(1, Math.round(window.innerWidth * size.ratio));
-  size.h = Math.max(1, Math.round(window.innerHeight * size.ratio));
+  size.w = Math.max(1, Math.round(w * size.ratio));
+  size.h = Math.max(1, Math.round(h * size.ratio));
   renderer.setSize(size.w, size.h, false);
-  canvas.style.width = `${window.innerWidth}px`;
-  canvas.style.height = `${window.innerHeight}px`;
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
   updateCamera();
   stillDrawn = false;
   wake();
+}
+
+// 画面上でのずれ (dx, dy) を、逆に回した中身の向きでのずれにする。
+function toApp(dx, dy) {
+  const a = (turn * Math.PI) / 180;
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  return [c * dx - s * dy, s * dx + c * dy];
+}
+
+// Android の Chrome などでは、全画面にすれば縦向きに固定できる。
+// iPhone はできないので、上の逆回しで合わせる。
+async function lockPortrait() {
+  const el = document.documentElement;
+  if (!touch || !el.requestFullscreen || !screen.orientation || !screen.orientation.lock) return;
+  try {
+    await el.requestFullscreen({ navigationUI: 'hide' });
+    await screen.orientation.lock('portrait');
+  } catch {
+    // 固定できなくても、逆回しで合わせるので困らない。
+  }
 }
 
 function render(s) {
@@ -296,8 +351,7 @@ canvas.addEventListener('pointerdown', (e) => {
 
 canvas.addEventListener('pointermove', (e) => {
   if (!pointer.down || e.pointerId !== pointer.id) return;
-  const dx = e.clientX - pointer.startX;
-  const dy = e.clientY - pointer.startY;
+  const [dx, dy] = toApp(e.clientX - pointer.startX, e.clientY - pointer.startY);
   pointer.moved = Math.max(pointer.moved, Math.hypot(dx, dy));
   const t = tilt.state;
   t.roll = tilt.clamp(pointer.roll0 + dx * tilt.PER_PX, -tilt.TILT_MAX, tilt.TILT_MAX);
@@ -344,8 +398,11 @@ window.addEventListener('blur', () => {
   pointer.down = false;
 });
 window.addEventListener('resize', resize);
+// iPhone では、向きが変わった直後はまだ画面の大きさが古いことがあるので、少し待ってもう一度合わせる。
+window.addEventListener('orientationchange', () => setTimeout(resize, 300));
+if (screen.orientation) screen.orientation.addEventListener('change', resize);
 
-// 乾杯：音を鳴らせるようにして、スマホなら傾きセンサーを使い始める。
+// 乾杯：音を鳴らせるようにして、スマホなら傾きセンサーを使い始め、縦向きに固定する。
 async function startCheers() {
   if (st.started) return;
   st.started = true;
@@ -353,11 +410,13 @@ async function startCheers() {
   sound.clink();
   cheers.hidden = true;
   if (touch && 'DeviceOrientationEvent' in window) {
+    // iPhone の許可はタップの中で先に聞く。
     const ok = await tilt.enableSensor();
     levelButton.hidden = !ok;
     if (!ok) showNotice('nosensor', 4);
   }
-  wake();
+  await lockPortrait();
+  resize();
 }
 cheers.addEventListener('click', startCheers);
 
@@ -440,6 +499,7 @@ window.__beer = {
     for (let i = 0; i < n; i++) simulate(sec / n);
   },
   calls: { gulp: 0, aah: 0 },
+  layout: () => ({ turn, width: app.style.width, height: app.style.height, transform: app.style.transform }),
   render(s = 1) {
     updateHint();
     render(s);

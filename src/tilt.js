@@ -1,5 +1,6 @@
-// ジョッキの「上向き」を決める。ジョッキのローカル座標は画面と同じ向き（x 右、y 上、z 手前）なので、
-// スマホを傾けると、重力の上向きが画面に対して回る。液面はいつもこの向きに垂直になる。
+// ジョッキの「上向き」を決める。ジョッキのローカル座標はスマホ本体と同じ向き（x 右、y 上、z 手前）なので、
+// スマホを傾けると、重力の上向きが本体に対して回る。液面はいつもこの向きに垂直になる。
+// 画面が自動で横向きになっても、main.js が中身を逆に回して本体の縦向きに合わせるので、ここでは画面の向きを気にしない。
 //
 // ・スマホ：傾きセンサー（deviceorientation）の beta/gamma から重力の向きを出す。
 //   ふだんスマホは少し寝かせて持つので、乾杯したときの前後の傾きを「まっすぐ立てた状態」とみなす。
@@ -20,16 +21,11 @@ export function upFromAngles(roll, pitch) {
   return v.map((x) => x / l);
 }
 
-// 端末の向き（度）から、画面座標での重力の上向き。alpha（方位）は関係しない。
-export function upFromOrientation(beta, gamma, screenAngle) {
+// 端末の向き（度）から、本体の座標での重力の上向き。alpha（方位）は関係しない。
+export function upFromOrientation(beta, gamma) {
   const b = (beta * Math.PI) / 180;
   const g = (gamma * Math.PI) / 180;
-  const d = [-Math.cos(b) * Math.sin(g), Math.sin(b), Math.cos(b) * Math.cos(g)];
-  // 横持ちのときは、端末の向きを画面の向きへ回す。
-  const a = (screenAngle * Math.PI) / 180;
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  return [d[0] * c - d[1] * s, d[0] * s + d[1] * c, d[2]];
+  return [-Math.cos(b) * Math.sin(g), Math.sin(b), Math.cos(b) * Math.cos(g)];
 }
 
 export function createTilt() {
@@ -50,22 +46,20 @@ export function createTilt() {
 
   function onOrientation(e) {
     if (e.beta === null || e.gamma === null) return;
-    const angle = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
-    st.sensor = upFromOrientation(e.beta, e.gamma, angle);
-    if (st.needRef) {
-      st.needRef = false;
-      calibrate();
-    }
+    st.sensor = upFromOrientation(e.beta, e.gamma);
+    if (st.needRef) calibrate();
   }
 
   // 今の前後の傾きを「まっすぐ」にする。
+  // 横に倒して持っているときは前後の傾きが決まらないので、縦に持ち直すまで待つ。
   function calibrate() {
-    if (!st.sensor) {
+    const g = st.sensor;
+    if (!g || Math.hypot(g[1], g[2]) < 0.6) {
       st.needRef = true;
       return;
     }
-    const [, y, z] = st.sensor;
-    st.pitchRef = clamp(Math.atan2(z, y), -0.5, (85 * Math.PI) / 180);
+    st.needRef = false;
+    st.pitchRef = clamp(Math.atan2(g[2], g[1]), -0.5, (85 * Math.PI) / 180);
   }
 
   // iPhone は、タップの中で許可をもらう必要がある。

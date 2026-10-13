@@ -23,8 +23,19 @@ body {
   user-select: none;
 }
 
-#stage {
+/* 中身をまとめる箱。画面が横向きになったら main.js が逆に回して、スマホ本体の縦向きに合わせる。 */
+#app {
   position: fixed;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  transform-origin: 50% 50%;
+}
+
+#stage {
+  position: absolute;
   inset: 0;
   display: block;
   touch-action: none;
@@ -32,7 +43,7 @@ body {
 }
 
 .round {
-  position: fixed;
+  position: absolute;
   top: max(10px, env(safe-area-inset-top));
   right: 12px;
   width: 40px;
@@ -88,7 +99,7 @@ body {
 }
 
 .hint {
-  position: fixed;
+  position: absolute;
   left: 16px;
   right: 16px;
   bottom: max(18px, env(safe-area-inset-bottom));
@@ -154,7 +165,7 @@ body {
 }
 
 .cheers {
-  position: fixed;
+  position: absolute;
   left: 50%;
   bottom: calc(max(18px, env(safe-area-inset-bottom)) + 56px);
   transform: translateX(-50%);
@@ -204,7 +215,7 @@ body {
 }
 
 .error {
-  position: fixed;
+  position: absolute;
   inset: auto 16px 50% 16px;
   text-align: center;
 }
