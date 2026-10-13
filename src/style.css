@@ -135,6 +135,7 @@ body {
 .hint[data-state='level'] [data-for='level'],
 .hint[data-state='nosensor'] [data-for='nosensor'],
 .hint[data-state='rotate'] [data-for='rotate'],
+.hint[data-state='hold'] [data-for='hold'],
 [data-input='touch'] .hint[data-state='ready'] [data-for='ready touch'],
 [data-input='mouse'] .hint[data-state='ready'] [data-for='ready mouse'] {
   display: inline;

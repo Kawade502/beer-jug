@@ -123,18 +123,19 @@ const smoothstep = (a, b, x) => {
 // 縦向きのときの描く範囲の大きさ (CSS px)。画面を逆に回している間もこの大きさで合わせて、
 // 1mm あたりの画素数を変えない（iPhone は横向きにするとツールバーの位置が変わり、範囲の縦横比が変わるため）。
 // 横向きのまま開いたときにも使えるよう、端末ごとに覚えておく。まだ一度も縦向きで開いていなければ、今の範囲に合わせる。
-const PORTRAIT_KEY = 'beer-jug:portrait';
+// 覚えるのは本当に縦長のときだけ（画面が回る途中の、横長の大きさを覚えるとジョッキが半分ほどに縮むため）。
+const PORTRAIT_KEY = 'beer-jug:portrait:v2';
 const screenKey = () => `${Math.min(screen.width, screen.height)}x${Math.max(screen.width, screen.height)}`;
 const portrait = { w: 0, h: 0 };
 try {
   const v = JSON.parse(localStorage.getItem(PORTRAIT_KEY));
-  if (v && v.key === screenKey()) Object.assign(portrait, { w: v.w, h: v.h });
+  if (v && v.key === screenKey() && v.w > 0 && v.w < v.h) Object.assign(portrait, { w: v.w, h: v.h });
 } catch {
   // 覚えておけない環境では、縦向きになったときに測る。
 }
 
 function updateCamera(w, h) {
-  if (touch && turn === 0 && osTurn === 0 && (portrait.w !== w || portrait.h !== h)) {
+  if (touch && turn === 0 && osTurn === 0 && w < h && (portrait.w !== w || portrait.h !== h)) {
     portrait.w = w;
     portrait.h = h;
     try {
@@ -203,24 +204,32 @@ let osTurn = 0; // OS が画面を回している角度（度、本体の自然�
 let turn = 0; // 中身を逆に回している角度
 
 // 本体の自然な向きが横の端末（多くの Android タブレット）。そのときは逆に回さず、センサーの値のほうを回す。
+// スマホ（短い辺が 600px 未満）はいつも縦が自然な向きとする。回転の途中で角度と種類が食い違っても、誤って横と判定しないため。
 function naturalLandscape() {
+  if (Math.min(screen.width, screen.height) < 600) return false;
   const o = screen.orientation;
   if (!o || typeof o.type !== 'string') return false;
   return (o.angle % 180 === 0) === o.type.startsWith('landscape');
 }
 
+// OS が画面を回している角度。スマホでは角度の値ではなく、画面の形（横長か）で決める。
+// iPhone では画面が回るとき、大きさが先に変わって角度はまだ古い、という瞬間があるため。
 function screenAngle() {
   if (!touch) return 0; // パソコンの横長の画面はそのまま
   const o = screen.orientation;
   const a = o && typeof o.angle === 'number' ? o.angle : Number(window.orientation) || 0;
   const q = (((Math.round(a / 90) * 90) % 360) + 360) % 360;
-  if (q === 90 || q === 270) {
-    // 横向きのときは、どちらへ倒したかを重力の向きで確かめる（ブラウザによって角度の符号が違うことがあるため）。
-    // 本体の右の辺（+x）が上を向いていれば、反時計回りに倒している。
-    const g = tilt.state.sensor;
+  if (naturalLandscape()) return q;
+  const g = tilt.state.sensor;
+  if (window.innerWidth > window.innerHeight) {
+    // 横長：どちらへ倒したかは重力の向きで決める。本体の右の辺（+x）が上なら、反時計回りに倒している。
+    // 重力があいまいなら角度、それもだめなら前の値を使う。
     if (g && Math.abs(g[0]) > 0.5) return g[0] > 0 ? 90 : 270;
+    if (q === 90 || q === 270) return q;
+    return osTurn === 270 ? 270 : 90;
   }
-  return q;
+  // 縦長：逆さま（180）は、角度と重力の両方がそう言うときだけ。
+  return q === 180 && (!g || g[1] < -0.3) ? 180 : 0;
 }
 
 // 画面の端の余白（ノッチなど）の大きさ。env() は今の画面の上下左右で決まる。
@@ -534,6 +543,8 @@ function updateHint() {
   let state = s.phase;
   if (state === 'settle') state = 'ready';
   if (s.flow > 0 || s.slurp > 0) state = 'drinking';
+  // 乾杯の前に横向きにすると、ジョッキはまっすぐ立ったまま小さく描かれる。縦に持って乾杯するよう案内する。
+  if (!st.started && !tilt.state.sensor && osTurn && turn === 0 && !naturalLandscape()) state = 'hold';
   if (st.notice) state = st.notice;
   if (hint.dataset.state !== state) hint.dataset.state = state;
   const ml = Math.round(s.volume / 1000);
