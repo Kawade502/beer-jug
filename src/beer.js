@@ -25,14 +25,18 @@ const POUR_TIME = 6.5; // 注ぎきるまでの秒数
 const POUR_HEAD = 0.35; // 注ぎ口から液面まで流れが落ちてくる秒数
 // 立てたときの泡の量（注ぎ終わりの目安）。注いでいる間は少し多めに立ち、落ち着くとこれに戻る。
 const FOAM_FULL = volumeBelow([0, 1, 0], FOAM_TOP, DOME_MAX) - FULL_VOLUME;
-const FOAM_MIN = FOAM_FULL * 0.18; // 泡はゆっくり痩せるが、これより薄くはならない
+// 泡は時間とともにゆっくり痩せ、最後は薄い膜が残る（3 分で約 6 割、10 分で約 2 割）。
+const FOAM_MIN = FOAM_FULL * 0.1;
+const FOAM_FADE = 300; // 痩せる時定数 (秒)
 
 const GULP = 0.5; // ゴクッのリズム (秒)
 const GULP_FLOW = 0.34; // そのうち、のどに流れ込んでいる時間 (秒)
 const DRINK_K = 7600; // 縁を越えた高さ h (mm) に対して K·h^1.5 (mm³/s) で流れ出る
 const DRINK_MAX = 75000;
-const FOAM_K = 2600;
-const FOAM_MAX = 60000;
+// 泡はふわっと固まっているので、傾けても液体のようには流れ出ない。縁を越えた泡がほんの少しずつ減るだけ。
+const FOAM_SPILL_K = 300;
+const FOAM_SPILL_MAX = 600; // (mm³/s)
+const FOAM_PER_SIP = 0.03; // 飲んだ量に対して、一緒に口に入る泡の割合
 export const EMPTY = 6000; // これより少なければ飲み干した (mm³)
 
 const SITES = 12;
@@ -182,8 +186,8 @@ export function createBeer(events = {}) {
     if (s.phase === 'settle' || s.phase === 'ready') {
       s.since += dt;
       if (s.foam > FOAM_FULL) s.foam += (FOAM_FULL - s.foam) * (1 - Math.exp(-dt / 2.5));
-      // ゆっくり痩せる（半分になるのに 3 分ほど）。
-      if (s.foam > FOAM_MIN) s.foam -= (s.foam - FOAM_MIN) * (1 - Math.exp(-dt / 260));
+      // 時間とともにゆっくり痩せる。
+      if (s.foam > FOAM_MIN) s.foam -= (s.foam - FOAM_MIN) * (1 - Math.exp(-dt / FOAM_FADE));
       if (s.phase === 'settle' && s.since > 3) s.phase = 'ready';
     }
 
@@ -196,11 +200,13 @@ export function createBeer(events = {}) {
     s.rimD = rim;
 
     // ---------------- 飲む：縁を越えたぶんが、のどへ流れ込む
+    // 泡が縁を越えても、描くときに縁で切れるだけで、立て直せば泡の頭が戻る。ほんの少しずつだけ減る。
+    // ズズッの音は、泡がどれだけ縁を越えているかで、控えめに鳴らす。
     const foamOver = s.foamD - (rim + s.dome * 0.7);
     if (s.foam > 0 && foamOver > 0) {
-      const q = Math.min(FOAM_K * foamOver ** 1.5, FOAM_MAX) * dt;
+      const q = Math.min(FOAM_SPILL_K * foamOver ** 1.5, FOAM_SPILL_MAX) * dt;
       s.foam = Math.max(0, s.foam - q);
-      s.slurp = Math.min(1, q / dt / 60000);
+      s.slurp = foamOver > 2 ? Math.min(0.5, foamOver / 15) : 0;
     } else {
       s.slurp = 0;
     }
@@ -223,8 +229,8 @@ export function createBeer(events = {}) {
         s.drunk += take;
         s.sip += take;
         s.flow = take / dt;
-        // 泡も少しずつ持っていかれる。
-        s.foam = Math.max(0, s.foam - take * 0.15);
+        // ビールは泡の下をくぐって口に入る。泡の層は液面に乗ったまま下がり、ほんの少しだけ一緒に減る。
+        s.foam = Math.max(0, s.foam - take * FOAM_PER_SIP);
       }
     } else if (s.gulpT >= 0) {
       s.gulpT = -1;

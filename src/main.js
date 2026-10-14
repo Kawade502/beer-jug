@@ -566,7 +566,7 @@ function updateHint() {
   const s = beer.state;
   let state = s.phase;
   if (state === 'settle') state = 'ready';
-  if (s.flow > 0 || s.slurp > 0) state = 'drinking';
+  if (s.flow > 0) state = 'drinking';
   // 乾杯の前に横向きにすると、ジョッキはまっすぐ立ったまま小さく描かれる。縦に持って乾杯するよう案内する。
   const quiet = state === 'pour' || state === 'ready';
   if (quiet && !st.started && !tilt.state.sensor && osTurn && turn === 0 && !naturalLandscape() && fillsScreen()) state = 'hold';
