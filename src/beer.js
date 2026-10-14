@@ -37,6 +37,10 @@ const DRINK_MAX = 75000;
 const FOAM_SPILL_K = 300;
 const FOAM_SPILL_MAX = 600; // (mm³/s)
 const FOAM_PER_SIP = 0.03; // 飲んだ量に対して、一緒に口に入る泡の割合
+// 振ると泡が立つ：ビールの炭酸が抜けて泡になる。ビール 1 に対して泡はおよそ 4 倍のかさになる。
+const SHAKE_FOAM = 50000; // いちばん強く振ったときに増える泡 (mm³/s)
+const SHAKE_FOAM_MAX = 1.5; // 振って立てられる泡は、注いだときの泡の 1.5 倍まで
+const FOAM_EXPAND = 4;
 export const EMPTY = 6000; // これより少なければ飲み干した (mm³)
 
 const SITES = 12;
@@ -64,6 +68,8 @@ export function createBeer(events = {}) {
     foamD: 0,
     rimD: 0,
     dome: 0,
+    foaming: 0, // 振って泡が増えている速さ (mm³/s)
+    shake: 0,
     bubAcc: 0,
   };
 
@@ -130,9 +136,15 @@ export function createBeer(events = {}) {
     return null;
   }
 
-  function spawnBubble(up, P) {
+  function spawnBubble(up, P, shake = 0) {
     let b;
-    if (P > 0.05 && rand() < 0.7) {
+    if (shake > 0.05 && rand() < shake) {
+      // 振ったときは、液全体のあちこちから泡が湧く。
+      const th = rand() * Math.PI * 2;
+      const y = 18 + rand() * Math.max(s.liqD - 20, 2);
+      const rr = Math.sqrt(rand()) * (innerR(y) - 1.5);
+      b = { x: Math.cos(th) * rr, y, z: Math.sin(th) * rr, r: 0.2 + rand() * 0.5, ph: rand() * 6.28, wob: 5 };
+    } else if (P > 0.05 && rand() < 0.7) {
       // 注いでいる流れが当たったところから、細かい泡が巻き込まれて沈み、また上る。
       const th = rand() * Math.PI * 2;
       const rr = Math.sqrt(rand()) * 16;
@@ -147,7 +159,8 @@ export function createBeer(events = {}) {
     return b;
   }
 
-  function step(dt, up) {
+  // shake は振っている強さ (0〜1)。
+  function step(dt, up, shake = 0) {
     s.t += dt;
     const total = s.volume + s.foam;
 
@@ -178,10 +191,27 @@ export function createBeer(events = {}) {
     s.pouring = P;
     s.haze = P > 0 ? Math.min(0.05, s.haze + dt * 0.08) : s.haze * Math.exp(-dt / 1.6);
 
+    // ---------------- 振ると泡が立つ
+    // 泡は縁の少し上（立てているときのドーム）までしか盛り上がれないので、満杯なら少し、減っていればしっかり立つ。
+    s.foaming = 0;
+    s.shake = shake;
+    if (shake > 0.02 && s.volume > EMPTY && (s.phase === 'ready' || s.phase === 'settle')) {
+      const room = Math.min(volumeBelow(up, s.rimD + s.dome * 0.7, s.dome) - s.volume - s.foam, FOAM_FULL * SHAKE_FOAM_MAX - s.foam);
+      if (room > 0) {
+        const add = Math.min(SHAKE_FOAM * shake * dt, room);
+        s.foam += add;
+        s.volume -= add / FOAM_EXPAND;
+        s.foaming = add / dt;
+      }
+      // 液の中も細かい泡で濁る。
+      s.haze = Math.min(0.04, s.haze + dt * 0.1 * shake);
+    }
+
     // ---------------- 泡が落ち着く
     if (s.phase === 'settle' || s.phase === 'ready') {
       s.since += dt;
-      if (s.foam > FOAM_FULL) s.foam += (FOAM_FULL - s.foam) * (1 - Math.exp(-dt / 2.5));
+      // 注ぎ終わりに多めに立った泡は、すぐ落ち着く（振って立てた泡は、ふつうに時間とともに痩せる）。
+      if (s.since < 10 && s.foam > FOAM_FULL) s.foam += (FOAM_FULL - s.foam) * (1 - Math.exp(-dt / 2.5));
       // 時間とともにゆっくり痩せる。
       if (s.foam > FOAM_MIN) s.foam -= (s.foam - FOAM_MIN) * (1 - Math.exp(-dt / FOAM_FADE));
       if (s.phase === 'settle' && s.since > 3) s.phase = 'ready';
@@ -240,11 +270,11 @@ export function createBeer(events = {}) {
 
     // ---------------- 炭酸の泡
     const fizz = s.volume > EMPTY ? 1 : 0;
-    s.bubAcc += dt * (fizz * 14 + P * 160);
+    s.bubAcc += dt * (fizz * 14 + P * 160 + fizz * shake * 150);
     while (s.bubAcc >= 1) {
       s.bubAcc -= 1;
       if (bubbles.length >= MAX_BUB) continue;
-      const b = spawnBubble(up, P);
+      const b = spawnBubble(up, P, shake);
       if (b) bubbles.push(b);
     }
     const stir = P + Math.min(1, s.flow / 40000);

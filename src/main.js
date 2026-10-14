@@ -196,7 +196,7 @@ function updateUniforms() {
   uniforms.uFoamD.value = s.foam > 50 ? s.foamD : s.liqD;
   // 立てているときだけ、縁の上で泡がこんもり盛り上がる。
   uniforms.uDome.value = s.dome;
-  uniforms.uRipple.value = Math.min(1, tilt.slosh() * 1.2 + s.pouring * 0.6 + (s.flow > 0 ? 0.5 : 0) + 0.03);
+  uniforms.uRipple.value = Math.min(1, tilt.slosh() * 1.2 + s.pouring * 0.6 + (s.flow > 0 ? 0.5 : 0) + tilt.shake * 0.8 + 0.03);
   uniforms.uHaze.value = s.haze;
   uniforms.uTime.value = st.time;
 
@@ -374,7 +374,7 @@ function simulate(dt) {
     tilt.step(STEP);
     acc -= STEP;
   }
-  beer.step(dt, tilt.up);
+  beer.step(dt, tilt.up, tilt.shake);
   if (st.noticeT > 0) {
     st.noticeT -= dt;
     if (st.noticeT <= 0) st.notice = '';
@@ -382,12 +382,13 @@ function simulate(dt) {
 }
 
 // シュワシュワの強さ (0〜1)。注いでいる間ははっきり、注ぎ終わったらすぐ小さくなり、10 秒ほどで消える。
+// 振っている間も、泡が立つシュワッという音を小さく鳴らす（ふつうに傾けて飲むだけでは鳴らない）。
 function fizzLevel() {
   const s = beer.state;
   if (s.pouring) return 1;
   if (s.volume <= EMPTY) return 0;
-  const f = 0.35 * Math.exp(-s.since / 3);
-  return f < 0.01 ? 0 : f;
+  const f = 0.35 * Math.exp(-s.since / 3) + 0.45 * tilt.shake;
+  return f < 0.01 ? 0 : Math.min(1, f);
 }
 
 function updateLoopSound() {
@@ -499,6 +500,9 @@ window.addEventListener('keydown', (e) => {
     refill();
   } else if (e.key === 'm' || e.key === 'M') {
     toggleMute();
+  } else if (e.key === 's' || e.key === 'S') {
+    // パソコンでは S キーを押している間、振ったことにする。
+    tilt.state.shakeKey = true;
   } else if ((e.key === 'Enter' || e.key === ' ') && !st.started) {
     e.preventDefault();
     startCheers();
@@ -509,9 +513,11 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => {
   if (KEYS[e.key]) tilt.state.keys[KEYS[e.key]] = false;
+  if (e.key === 's' || e.key === 'S') tilt.state.shakeKey = false;
   wake();
 });
 window.addEventListener('blur', () => {
+  tilt.state.shakeKey = false;
   for (const k of Object.keys(tilt.state.keys)) tilt.state.keys[k] = false;
   tilt.state.held = false;
   pointer.down = false;
@@ -640,6 +646,10 @@ window.__beer = {
     tilt.state.pitch = (pitch * Math.PI) / 180;
   },
   calibrateNow: () => tilt.calibrate(),
+  // 振る（0〜1）。0 でやめる。
+  shake(strength) {
+    tilt.state.shakeTest = strength;
+  },
   render(s = 1) {
     updateHint();
     render(s);
@@ -658,6 +668,7 @@ window.__beer = {
       flow: Math.round(s.flow),
       bubbles: beer.bubbles.length,
       up: tilt.up.map((x) => +x.toFixed(3)),
+      shake: +tilt.shake.toFixed(3),
       hint: hint.dataset.state,
     };
   },

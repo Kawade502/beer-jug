@@ -12,6 +12,10 @@ const KEY_RATE = 1.6; // キーを押している間の傾く速さ (rad/s)
 const PITCH_MAX = (80 * Math.PI) / 180;
 
 const clamp = (x, a, b) => Math.min(Math.max(x, a), b);
+const smooth = (a, b, x) => {
+  const t = clamp((x - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
+};
 
 // 左右（画面内の回転、右へ倒すと正）と前後（上を手前へ倒すと正）の角度から上向きを作る。
 export function upFromAngles(roll, pitch) {
@@ -44,14 +48,42 @@ export function createTilt({ onFirstReading } = {}) {
     frame: 0, // 中身の座標が本体に対して回っている角度（度、反時計回り）。ふつうは 0
     pitchRef: 0,
     test: null,
+    // 振る：本体の加速度（重力を除く、m/s²）と、傾きの変わる速さ（rad/s）から、振っている強さ shake (0〜1) を出す。
+    motion: 0,
+    spin: 0,
+    shake: 0,
+    shakeKey: false, // パソコンの S キー
+    shakeTest: 0,
+    lastTarget: null,
+    gLow: null,
   };
+
+  // 重力を除いた本体の加速度。取れない端末では、重力込みの値から、ゆっくり変わる重力の分を引く。
+  function onMotion(e) {
+    const a = e.acceleration;
+    let m = 0;
+    if (a && a.x !== null && a.y !== null && a.z !== null) {
+      m = Math.hypot(a.x, a.y, a.z);
+    } else {
+      const g = e.accelerationIncludingGravity;
+      if (!g || g.x === null) return;
+      const v = [g.x, g.y, g.z];
+      if (!st.gLow) st.gLow = [...v];
+      for (let i = 0; i < 3; i++) st.gLow[i] += (v[i] - st.gLow[i]) * 0.1;
+      m = Math.hypot(v[0] - st.gLow[0], v[1] - st.gLow[1], v[2] - st.gLow[2]);
+    }
+    st.motion = Math.max(st.motion, m);
+  }
 
   function onOrientation(e) {
     if (e.beta === null || e.gamma === null) return;
     const first = !st.sensor;
     st.sensor = upFromOrientation(e.beta, e.gamma);
     if (st.needRef) calibrate();
-    if (first) onFirstReading?.();
+    if (first) {
+      st.lastTarget = null;
+      onFirstReading?.();
+    }
   }
 
   // センサーの上向きを、中身（ジョッキ）の座標にする。
@@ -73,30 +105,34 @@ export function createTilt({ onFirstReading } = {}) {
     }
     const [x, y, z] = st.sensor;
     st.needRef = false;
+    st.lastTarget = null;
     st.pitchRef = clamp(Math.atan2(z, Math.hypot(x, y)), -0.5, (85 * Math.PI) / 180);
     return true;
   }
 
-  // iPhone は、タップの中で許可をもらう必要がある。
+  // iPhone は、タップの中で許可をもらう必要がある。傾き（orientation）と動き（motion）の許可を、同じタップの中で一緒に聞く。
   async function enableSensor() {
     if (st.sensorOn) return true;
     const DOE = window.DeviceOrientationEvent;
+    const DME = window.DeviceMotionEvent;
     if (!DOE) return false;
-    if (typeof DOE.requestPermission === 'function') {
-      try {
-        if ((await DOE.requestPermission()) !== 'granted') return false;
-      } catch {
-        return false;
-      }
-    }
+    const ask = (E) =>
+      E && typeof E.requestPermission === 'function'
+        ? E.requestPermission().then((r) => r === 'granted', () => false)
+        : Promise.resolve(!!E);
+    const [orientationOk, motionOk] = await Promise.all([ask(DOE), ask(DME)]);
+    if (!orientationOk) return false;
     st.sensorOn = true;
     st.needRef = true;
     window.addEventListener('deviceorientation', onOrientation);
+    // 振ったかどうかは加速度で見る。使えなくても、傾きの変わる速さで見る。
+    if (motionOk) window.addEventListener('devicemotion', onMotion);
     return true;
   }
 
   function disableSensor() {
     window.removeEventListener('deviceorientation', onOrientation);
+    window.removeEventListener('devicemotion', onMotion);
     st.sensorOn = false;
     st.sensor = null;
   }
@@ -128,6 +164,20 @@ export function createTilt({ onFirstReading } = {}) {
     else if (st.sensor) st.target = sensorUp();
     else st.target = upFromAngles(st.roll, st.pitch);
 
+    // 振っている強さ。加速度は 8〜20 m/s²、傾きの変わる速さは 7〜14 rad/s で 0〜1。
+    // ふつうに傾けて飲む動きや、手を離してばねで戻る動き（いちばん速くて 5 rad/s ほど）では立たない。
+    // センサーの値はとびとびに届くので少しならし、1 回で大きく飛んだ分（補正や最初の値など）は数えない。
+    if (st.lastTarget) {
+      const d = Math.min(Math.hypot(...st.target.map((x, i) => x - st.lastTarget[i])), 0.3);
+      st.spin += (d / dt - st.spin) * (1 - Math.exp(-dt / 0.08));
+    }
+    st.lastTarget = [...st.target];
+    const fromMotion = smooth(8, 20, st.motion);
+    const fromSpin = smooth(7, 14, st.spin);
+    const now = Math.max(fromMotion, fromSpin, st.shakeKey ? 0.8 : 0, st.shakeTest);
+    st.shake = Math.max(st.shake * Math.exp(-dt / 0.25), now);
+    st.motion *= Math.exp(-dt / 0.15);
+
     // 液面は目標の向きを少し遅れて追い、行き過ぎて戻る（ちゃぷんと揺れる）。
     const u = st.up;
     const v = st.vel;
@@ -142,6 +192,7 @@ export function createTilt({ onFirstReading } = {}) {
   // テスト用：揺れを飛ばして、すぐその向きにする。
   function snap() {
     st.target = st.test || st.target;
+    st.lastTarget = null;
     st.up = [...st.target];
     st.vel = [0, 0, 0];
   }
@@ -153,10 +204,14 @@ export function createTilt({ onFirstReading } = {}) {
     Math.abs(st.pitchV) > 0.002 ||
     Math.abs(st.roll) > 0.002 ||
     Math.abs(st.pitch) > 0.002 ||
-    st.held;
+    st.held ||
+    st.shake > 0.01;
 
   return {
     state: st,
+    get shake() {
+      return st.shake;
+    },
     step,
     snap,
     slosh,
@@ -165,6 +220,7 @@ export function createTilt({ onFirstReading } = {}) {
     disableSensor,
     calibrate,
     setFrame(deg) {
+      if (deg !== st.frame) st.lastTarget = null;
       st.frame = deg;
     },
     PER_PX,
