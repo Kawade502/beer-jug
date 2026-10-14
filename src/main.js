@@ -374,7 +374,7 @@ function simulate(dt) {
     tilt.step(STEP);
     acc -= STEP;
   }
-  beer.step(dt, tilt.up, tilt.shake);
+  beer.step(dt, tilt.up, tilt.shake, tilt.pose);
   if (st.noticeT > 0) {
     st.noticeT -= dt;
     if (st.noticeT <= 0) st.notice = '';
@@ -382,13 +382,12 @@ function simulate(dt) {
 }
 
 // シュワシュワの強さ (0〜1)。注いでいる間ははっきり、注ぎ終わったらすぐ小さくなり、10 秒ほどで消える。
-// 振っている間も、泡が立つシュワッという音を小さく鳴らす（ふつうに傾けて飲むだけでは鳴らない）。
 function fizzLevel() {
   const s = beer.state;
   if (s.pouring) return 1;
   if (s.volume <= EMPTY) return 0;
-  const f = 0.35 * Math.exp(-s.since / 3) + 0.45 * tilt.shake;
-  return f < 0.01 ? 0 : Math.min(1, f);
+  const f = 0.35 * Math.exp(-s.since / 3);
+  return f < 0.01 ? 0 : f;
 }
 
 function updateLoopSound() {
@@ -669,6 +668,7 @@ window.__beer = {
       bubbles: beer.bubbles.length,
       up: tilt.up.map((x) => +x.toFixed(3)),
       shake: +tilt.shake.toFixed(3),
+      pose: tilt.pose.map((x) => +x.toFixed(3)),
       hint: hint.dataset.state,
     };
   },

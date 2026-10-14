@@ -162,8 +162,8 @@ export function createBeer(events = {}) {
     return b;
   }
 
-  // shake は振っている強さ (0〜1)。
-  function step(dt, up, shake = 0) {
+  // up は見た目の液面の上向き（揺れる）、pose は飲む判定に使う向き（揺らしても変わらない）。shake は振っている強さ (0〜1)。
+  function step(dt, up, shake = 0, pose = up) {
     s.t += dt;
     const total = s.volume + s.foam;
 
@@ -203,7 +203,7 @@ export function createBeer(events = {}) {
     if (shake > 0.02 && s.volume > EMPTY && (s.phase === 'ready' || s.phase === 'settle')) {
       // ビールを泡にしすぎて「飲み干した」ことにならないよう、少しだけは必ず残す。
       const keep = Math.max(0, (s.volume - EMPTY - SHAKE_KEEP) * FOAM_EXPAND);
-      const room = Math.min(volumeBelow(up, s.rimD + s.dome * 0.7, s.dome) - s.volume - s.foam, FOAM_FULL * SHAKE_FOAM_MAX - s.foam, keep);
+      const room = Math.min(volumeBelow(pose, s.rimD + s.dome * 0.7, s.dome) - s.volume - s.foam, FOAM_FULL * SHAKE_FOAM_MAX - s.foam, keep);
       if (room > 0) {
         const add = Math.min(SHAKE_FOAM * shake * dt, room);
         s.foam += add;
@@ -234,18 +234,22 @@ export function createBeer(events = {}) {
     // 立てているときだけ、泡は縁の上にこんもり盛り上がれる。
     s.dome = DOME_MAX * smoothstep(0.93, 0.995, up[1]);
     s.foamD = s.foam > 50 ? liquidPlane(up, s.volume + s.foam, s.dome) : s.liqD;
-    const rim = rimLow(up);
-    s.rimD = rim;
 
     // ---------------- 飲む：縁を越えたぶんが、のどへ流れ込む
+    // 飲む判定は、揺れを含まない向き pose で決める（揺らしただけでは縁を越えて飲んだことにならない）。
+    const same = Math.abs(pose[0] - up[0]) + Math.abs(pose[1] - up[1]) + Math.abs(pose[2] - up[2]) < 1e-4;
+    const liqP = same ? s.liqD : liquidPlane(pose, s.volume);
+    const foamP = same || s.foam <= 50 ? (same ? s.foamD : liqP) : liquidPlane(pose, s.volume + s.foam, s.dome);
+    const rim = rimLow(pose);
+    s.rimD = rim;
     // 泡が縁を越えても、描くときに縁で切れるだけで、立て直せば泡の頭が戻る。ほんの少しずつだけ減る。
-    const foamOver = s.foamD - (rim + s.dome * 0.7);
+    const foamOver = foamP - (rim + s.dome * 0.7);
     if (s.foam > 0 && foamOver > 0) {
       const q = Math.min(FOAM_SPILL_K * foamOver ** 1.5, FOAM_SPILL_MAX) * dt;
       s.foam = Math.max(0, s.foam - q);
     }
 
-    const over = s.liqD - rim;
+    const over = liqP - rim;
     s.flow = 0;
     if (over > 0.2 && s.volume > 0) {
       const before = s.gulpT;

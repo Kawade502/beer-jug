@@ -56,23 +56,43 @@ export function createTilt({ onFirstReading } = {}) {
     shakeTest: 0,
     lastTarget: null,
     gLow: null,
+    // 揺らす：本体の加速度（重力を除く、本体の座標、m/s²）を少しならしたもの。液面はこのぶん傾く。
+    acc: [0, 0, 0],
+    accRaw: [0, 0, 0],
+    accBias: [0, 0, 0],
+    accSign: 1, // 加速度の符号（端末によって逆）。重力込みの値と傾きセンサーの上向きを比べて合わせる
+    // 飲む判定に使う、向きだけを追う上向き（揺らしても変わらない）
+    pose: [0, 1, 0],
+    poseVel: [0, 0, 0],
   };
 
   // 重力を除いた本体の加速度。取れない端末では、重力込みの値から、ゆっくり変わる重力の分を引く。
   function onMotion(e) {
-    const a = e.acceleration;
-    let m = 0;
-    if (a && a.x !== null && a.y !== null && a.z !== null) {
-      m = Math.hypot(a.x, a.y, a.z);
-    } else {
-      const g = e.accelerationIncludingGravity;
-      if (!g || g.x === null) return;
-      const v = [g.x, g.y, g.z];
-      if (!st.gLow) st.gLow = [...v];
-      for (let i = 0; i < 3; i++) st.gLow[i] += (v[i] - st.gLow[i]) * 0.1;
-      m = Math.hypot(v[0] - st.gLow[0], v[1] - st.gLow[1], v[2] - st.gLow[2]);
+    const g = e.accelerationIncludingGravity;
+    const gv = g && g.x !== null && g.y !== null && g.z !== null ? [g.x, g.y, g.z] : null;
+    // 仕様どおりなら、止まっているときの重力込みの値は上向き（+9.8）。逆の端末では符号を反対にする。
+    if (gv && st.sensor) {
+      const d = gv[0] * st.sensor[0] + gv[1] * st.sensor[1] + gv[2] * st.sensor[2];
+      if (Math.abs(d) > 4) st.accSign += ((d > 0 ? 1 : -1) - st.accSign) * 0.05;
     }
-    st.motion = Math.max(st.motion, m);
+    const sign = st.accSign >= 0 ? 1 : -1;
+    const a = e.acceleration;
+    let v;
+    if (a && a.x !== null && a.y !== null && a.z !== null) {
+      v = [a.x, a.y, a.z];
+    } else {
+      if (!gv) return;
+      if (!st.gLow) st.gLow = [...gv];
+      for (let i = 0; i < 3; i++) st.gLow[i] += (gv[i] - st.gLow[i]) * 0.1;
+      v = gv.map((x, i) => x - st.gLow[i]);
+    }
+    st.motion = Math.max(st.motion, Math.hypot(...v));
+    // 少しならし、ゆっくり変わる分（センサーのずれや、乗り物の中のような長く続く加速度）は引いて、揺らした分だけを使う。
+    for (let i = 0; i < 3; i++) {
+      st.accRaw[i] += (sign * v[i] - st.accRaw[i]) * 0.3;
+      st.accBias[i] += (sign * v[i] - st.accBias[i]) * 0.01;
+      st.acc[i] = st.accRaw[i] - st.accBias[i];
+    }
   }
 
   function onOrientation(e) {
@@ -138,11 +158,22 @@ export function createTilt({ onFirstReading } = {}) {
   }
 
   function sensorUp() {
-    const [x, y, z] = sensorLocal();
+    return correctPitch(sensorLocal());
+  }
+
+  // ジョッキの x 軸（画面の横）まわりに -pitchRef 回す。乾杯したときの持ち方が「まっすぐ」になる。
+  function correctPitch([x, y, z]) {
     const c = Math.cos(st.pitchRef);
     const s = Math.sin(st.pitchRef);
-    // ジョッキの x 軸（画面の横）まわりに -pitchRef 回す。乾杯したときの持ち方が「まっすぐ」になる。
     return [x, y * c + z * s, -y * s + z * c];
+  }
+
+  // 本体の座標のベクトルを、ジョッキの座標（持ち方の補正込み）にする。
+  function toJug(v) {
+    const a = (st.frame * Math.PI) / 180;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    return correctPitch([v[0] * c - v[1] * s, v[0] * s + v[1] * c, v[2]]);
   }
 
   function step(dt) {
@@ -179,11 +210,28 @@ export function createTilt({ onFirstReading } = {}) {
     st.shake = Math.max(st.shake * Math.exp(-dt / 0.25), now);
     st.motion *= Math.exp(-dt / 0.15);
 
-    // 液面は目標の向きを少し遅れて追い、行き過ぎて戻る（ちゃぷんと揺れる）。
-    const u = st.up;
-    const v = st.vel;
+    // 見た目の液面：容器が加速すると、液面は「重力 − 加速度」に垂直になる（右へ動かすと左が高くなる）。
+    // 上向きに垂直な成分だけを使い、6 m/s² まで（液面の傾きは 30° ほどまで）。
+    const T = st.target;
+    let goal = T;
+    if (st.sensor) {
+      const a = toJug(st.acc);
+      const along = a[0] * T[0] + a[1] * T[1] + a[2] * T[2];
+      const p = a.map((x, i) => x - along * T[i]);
+      const m = Math.hypot(...p);
+      const k = m > 6 ? 6 / m : 1;
+      goal = T.map((x, i) => 9.81 * x + k * p[i]);
+    }
+    // 液面は目標の向きを少し遅れて追い、行き過ぎて何回か行き来してから収まる（ちゃぷちゃぷ揺れる）。
+    follow(st.up, st.vel, goal, 250, 6, dt);
+    // 飲む判定用：向きだけを、落ち着いたばねで追う（揺らしただけで縁を越えて飲んだことにしない）。
+    follow(st.pose, st.poseVel, T, 120, 13, dt);
+  }
+
+  function follow(u, v, goal, k, c, dt) {
+    const gl = Math.hypot(...goal) || 1;
     for (let i = 0; i < 3; i++) {
-      v[i] += (120 * (st.target[i] - u[i]) - 13 * v[i]) * dt;
+      v[i] += (k * (goal[i] / gl - u[i]) - c * v[i]) * dt;
       u[i] += v[i] * dt;
     }
     const l = Math.hypot(...u) || 1;
@@ -196,6 +244,9 @@ export function createTilt({ onFirstReading } = {}) {
     st.lastTarget = null;
     st.up = [...st.target];
     st.vel = [0, 0, 0];
+    st.pose = [...st.target];
+    st.poseVel = [0, 0, 0];
+    st.acc = [0, 0, 0];
   }
 
   const slosh = () => Math.hypot(...st.vel);
@@ -206,7 +257,9 @@ export function createTilt({ onFirstReading } = {}) {
     Math.abs(st.roll) > 0.002 ||
     Math.abs(st.pitch) > 0.002 ||
     st.held ||
-    st.shake > 0.01;
+    st.shake > 0.01 ||
+    Math.hypot(...st.poseVel) > 0.002 ||
+    Math.hypot(...st.acc) > 0.05;
 
   return {
     state: st,
@@ -230,6 +283,9 @@ export function createTilt({ onFirstReading } = {}) {
     clamp,
     get up() {
       return st.up;
+    },
+    get pose() {
+      return st.pose;
     },
     get sensorOn() {
       return !!st.sensorOn;
