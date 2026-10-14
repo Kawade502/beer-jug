@@ -25,9 +25,9 @@ const POUR_TIME = 6.5; // 注ぎきるまでの秒数
 const POUR_HEAD = 0.35; // 注ぎ口から液面まで流れが落ちてくる秒数
 // 立てたときの泡の量（注ぎ終わりの目安）。注いでいる間は少し多めに立ち、落ち着くとこれに戻る。
 const FOAM_FULL = volumeBelow([0, 1, 0], FOAM_TOP, DOME_MAX) - FULL_VOLUME;
-// 泡は時間とともにゆっくり痩せ、最後は薄い膜が残る（3 分で約 6 割、10 分で約 2 割）。
+// 泡は時間とともにゆっくり痩せ、最後は薄い膜が残る（2 分で約 6 割、5 分で約 3 割）。
 const FOAM_MIN = FOAM_FULL * 0.1;
-const FOAM_FADE = 300; // 痩せる時定数 (秒)
+const FOAM_FADE = 200; // 痩せる時定数 (秒)
 
 const GULP = 0.5; // ゴクッのリズム (秒)
 const GULP_FLOW = 0.34; // そのうち、のどに流れ込んでいる時間 (秒)
