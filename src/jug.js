@@ -35,7 +35,8 @@ export const LIP = { y: LIP_Y, rc: (LIP_RO + LIP_RI) / 2, rt: (LIP_RO - LIP_RI) 
 export const BASE = { punt: 1.2, puntR: 30, innerY: 15, innerRise: 3.5, innerR: 33 };
 
 // 取っ手：胴の右（+x）に付いた D 字の太い管。x-y 平面の角丸の長方形の輪郭をなぞる。
-export const HANDLE = { cx: 55, cy: 92, hx: 15, hy: 50, round: 15, rx: 6.5, rz: 8.5 };
+// 一般的な 500cc のジョッキと同じく低めに付ける：下は厚い底のすぐ上（23mm）、上は高さの 7 割ほど（123mm）。
+export const HANDLE = { cx: 55, cy: 73, hx: 15, hy: 50, round: 15, rx: 6.5, rz: 8.5 };
 
 // 注ぎ終わりの目安：ビールはここまで、泡はその上に縁を少し越えるまで。
 export const FILL_LEVEL = 146;
