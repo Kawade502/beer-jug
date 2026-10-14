@@ -1,6 +1,6 @@
 // 効果音はすべて Web Audio で合成する（音声ファイルは使わない）。
 //   トクトク  注いでいる間。満ちるほどジョッキの中の空気の音程が上がる
-//   シュワ    泡がはじける細かいパチパチ
+//   シュワ    泡がはじける、きめ細かいシュワー（注いでいる間と直後だけ、かすかに）
 //   ゴクッ    ひと口ごと。縁からビールが流れ込んでいる間、リズムよく続く
 //   コポッ    のどに空気が入る音
 //   ズズッ    泡を吸うとき
@@ -15,17 +15,18 @@ function makeNoise(ctx, seconds) {
   return buf;
 }
 
-// 泡がはじける音：まばらな、減衰の速い高い音の粒を並べたもの。
-function makeCrackle(ctx, seconds, perSecond) {
+// ビールの泡がはじける音：とても小さな泡が、ごく短い高い音の粒になって、すき間なく敷き詰められたもの。
+// 粒の大きさをそろえて、目立つ「パチッ」が出ないようにする（炭酸飲料のような粗い音にしない）。
+function makeFizz(ctx, seconds, perSecond) {
   const sr = ctx.sampleRate;
   const buf = ctx.createBuffer(1, Math.round(sr * seconds), sr);
   const d = buf.getChannelData(0);
   const p = perSecond / sr;
   for (let i = 0; i < d.length; i++) {
     if (Math.random() >= p) continue;
-    const a = (0.15 + 0.85 * Math.random() ** 2) * (Math.random() < 0.5 ? -1 : 1);
-    const f = 1800 + Math.random() * 7000;
-    const tau = sr * (0.0008 + Math.random() * 0.003);
+    const a = (0.5 + 0.5 * Math.random()) * (Math.random() < 0.5 ? -1 : 1);
+    const f = 4000 + Math.random() * 7000;
+    const tau = sr * (0.00015 + Math.random() * 0.00035);
     const len = Math.min(Math.round(tau * 5), d.length - i);
     for (let k = 0; k < len; k++) d[i + k] += a * Math.exp(-k / tau) * Math.sin((2 * Math.PI * f * k) / sr);
   }
@@ -63,7 +64,7 @@ function makeBabble(ctx, seconds, perSecond) {
 // AudioContext でも OfflineAudioContext でも使えるように、音を作る部分だけを分けておく。
 export function createVoices(ctx, out) {
   const noise = makeNoise(ctx, 2);
-  const crackle = makeCrackle(ctx, 4, 260);
+  const fizzBuf = makeFizz(ctx, 4, 2500);
   const babble = makeBabble(ctx, 3, 180);
 
   const gainAt = (t, peak, attack, decay) => {
@@ -181,7 +182,13 @@ export function createVoices(ctx, out) {
   const rush = layer(noise, 1, 'lowpass', 900);
   const bubbling = layer(babble, 1, 'bandpass', 900, 0.7);
   const tube = layer(noise, 1, 'bandpass', 600, 9);
-  const crack = layer(crackle, 1, 'highpass', 1800);
+  // シュワシュワ：高いところだけを残し、さらに耳に刺さるいちばん高いところを落とす。
+  const fizz = layer(fizzBuf, 1, 'highpass', 3000, 0.7);
+  const fizzLp = ctx.createBiquadFilter();
+  fizzLp.type = 'lowpass';
+  fizzLp.frequency.value = 11000;
+  fizz.filt.disconnect();
+  fizz.filt.connect(fizzLp).connect(fizz.g);
   const slurpN = layer(noise, 1, 'bandpass', 2400, 1.6);
 
   const loops = {
@@ -189,11 +196,11 @@ export function createVoices(ctx, out) {
       rush.src.start(t);
       bubbling.src.start(t, 0.9);
       tube.src.start(t, 0.3);
-      crack.src.start(t, 1.7);
+      fizz.src.start(t, 1.7);
       slurpN.src.start(t, 1.1);
     },
-    // flow: 注ぐ勢い (0〜1), air: 液面から縁までの空気の長さ (mm), fizz: シュワシュワ (0〜1), slurp: 泡を吸う (0〜1)
-    set(flow, air, fizz, slurp, t) {
+    // flow: 注ぐ勢い (0〜1), air: 液面から縁までの空気の長さ (mm), fizzy: シュワシュワ (0〜1), slurp: 泡を吸う (0〜1)
+    set(flow, air, fizzy, slurp, t) {
       rush.g.gain.setTargetAtTime(0.16 * flow, t, 0.05);
       bubbling.g.gain.setTargetAtTime(0.5 * flow, t, 0.05);
       // 口の開いた筒の共鳴：f ≒ 音速 / (4 × 長さ)。満ちるほど高くなる。
@@ -201,7 +208,7 @@ export function createVoices(ctx, out) {
       tube.filt.frequency.setTargetAtTime(f, t, 0.08);
       bubbling.filt.frequency.setTargetAtTime(f * 1.4, t, 0.08);
       tube.g.gain.setTargetAtTime(0.5 * flow, t, 0.05);
-      crack.g.gain.setTargetAtTime(0.4 * fizz, t, 0.1);
+      fizz.g.gain.setTargetAtTime(0.16 * fizzy, t, 0.25);
       slurpN.g.gain.setTargetAtTime(0.3 * slurp, t, 0.04);
       slurpN.filt.frequency.setTargetAtTime(1800 + 1400 * slurp, t, 0.04);
     },

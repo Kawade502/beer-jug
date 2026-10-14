@@ -40,6 +40,9 @@ precision highp sampler2D;
 uniform vec2 uRes;
 uniform vec3 uCamPos; // ジョッキのローカル座標（＝画面の向き）でのカメラ位置。カメラは -z を向く
 uniform vec2 uCamShift;
+// 画面の上でジョッキを傾けて描くとき（パソコン）の回転（世界 → ジョッキ）と、その中心。スマホでは単位行列。
+uniform mat3 uView;
+uniform vec3 uPivot;
 uniform float uTanHalf;
 uniform sampler2D uProf;
 // ローカル → 世界の向き：world = uRot * local。世界の y が重力の上向き。
@@ -276,16 +279,18 @@ float softbox(vec3 rd, float az0, float el0, float aw, float eh, float soft) {
 }
 
 // 店の明かりのぼけ。方向を格子に分けて、ひと升にひとつ丸い光を置く。
+// 横方向はちょうど一周 BOKEH_N 升にして、升の番号を一周でつなぐ（真後ろで光が途切れる継ぎ目を作らない）。
+const float BOKEH_N = 28.0;
 vec3 bokeh(vec3 rd) {
   float az = atan(rd.x, rd.z);
   float el = asin(clamp(rd.y, -1.0, 1.0));
-  vec2 g = vec2(az, el) / 0.22;
+  vec2 g = vec2(az / (2.0 * PI) * BOKEH_N, el / 0.22);
   vec2 cell = floor(g);
   vec3 c = vec3(0.0);
   for (int j = -1; j <= 1; j++)
   for (int i = -1; i <= 1; i++) {
     vec2 id = cell + vec2(float(i), float(j));
-    vec3 h = hash33(vec3(id, 3.0));
+    vec3 h = hash33(vec3(mod(id.x, BOKEH_N), id.y, 3.0));
     if (h.z < 0.45) continue;
     vec2 ctr = id + 0.2 + 0.6 * h.xy;
     float d = length((g - ctr) * vec2(cos(el), 1.0));
@@ -593,8 +598,9 @@ vec3 tonemap(vec3 c) {
 void main() {
   vec2 uv = (gl_FragCoord.xy / uRes) * 2.0 - 1.0;
   uv.x *= uRes.x / uRes.y;
-  vec3 rd = normalize(vec3(uv * uTanHalf + uCamShift, -1.0));
-  vec3 c = trace(uCamPos, rd);
+  vec3 rd = normalize(uView * vec3(uv * uTanHalf + uCamShift, -1.0));
+  vec3 ro = uView * (uCamPos - uPivot) + uPivot;
+  vec3 c = trace(ro, rd);
   vec2 v = gl_FragCoord.xy / uRes - 0.5;
   c *= 1.0 - 0.3 * dot(v, v) * 2.0;
   c = tonemap(c);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
 import { makeProfileTexture } from './jug.js';
-import { createBeer, STREAM_AT, STREAM_R } from './beer.js';
+import { createBeer, EMPTY, STREAM_AT, STREAM_R } from './beer.js';
 import { BLIT_FRAG, KEY_AZ, KEY_EL, TRACE_FRAG, VERT } from './shader.js';
 import { createSound } from './sound.js';
 import { createTilt } from './tilt.js';
@@ -46,6 +46,8 @@ const uniforms = {
   uRes: { value: new THREE.Vector2(1, 1) },
   uCamPos: { value: new THREE.Vector3(0, CENTER_Y, DIST) },
   uCamShift: { value: new THREE.Vector2(0, 0) },
+  uView: { value: new THREE.Matrix3() },
+  uPivot: { value: new THREE.Vector3(0, 90, 0) },
   uTanHalf: { value: 0.15 },
   uProf: { value: makeProfileTexture() },
   uRot: { value: new THREE.Matrix3() },
@@ -173,6 +175,21 @@ function updateUniforms() {
   _wx.crossVectors(_wy, _wz);
   const R = uniforms.uRot.value;
   R.set(_wx.x, _wx.y, _wx.z, _wy.x, _wy.y, _wy.z, _wz.x, _wz.y, _wz.z);
+  // センサーを使っていないとき（パソコン、センサーを許可しなかったスマホ）は、傾ける本体がないので、
+  // ジョッキそのものを画面の上で傾けて描く。背景は画面に固定したまま。
+  // V は世界 → ジョッキの回転 Rz(roll)·Rx(-pitch)。これで世界の上向きを移すと upFromAngles(roll, pitch) になる。
+  const V = uniforms.uView.value;
+  if (!tilt.state.sensor && !tilt.state.test) {
+    const { roll, pitch } = tilt.state;
+    const c = Math.cos(roll);
+    const sn = Math.sin(roll);
+    const cp = Math.cos(pitch);
+    const sp = Math.sin(pitch);
+    V.set(c, -sn * cp, -sn * sp, sn, c * cp, c * sp, 0, -sp, cp);
+    R.copy(V).transpose();
+  } else {
+    V.identity();
+  }
   // 世界のキーライトをローカルへ：local = R^T * world
   uniforms.uLightL.value.copy(LIGHT_W).applyMatrix3(R.clone().transpose());
 
@@ -365,11 +382,19 @@ function simulate(dt) {
   }
 }
 
+// シュワシュワの強さ (0〜1)。注いでいる間ははっきり、注ぎ終わったらすぐ小さくなり、10 秒ほどでほぼ聞こえなくなる。
+// 揺らしたときと飲んでいる間だけ、かすかによみがえる。
+function fizzLevel() {
+  const s = beer.state;
+  if (s.pouring) return 1;
+  if (s.volume <= EMPTY) return 0;
+  const f = 0.35 * Math.exp(-s.since / 3) + Math.min(0.15, tilt.slosh() * 0.3 + (s.flow > 0 ? 0.08 : 0));
+  return f < 0.01 ? 0 : f;
+}
+
 function updateLoopSound() {
   const s = beer.state;
-  const air = s.rimD - s.liqD;
-  const fizz = s.volume > 0 ? 0.25 + 0.75 * Math.exp(-s.since / 8) * Math.min(1, s.volume / 100000) : 0;
-  sound.setLoops(s.pouring, air, s.pouring ? 1 : fizz * 0.6, s.slurp);
+  sound.setLoops(s.pouring, s.rimD - s.liqD, fizzLevel(), s.slurp);
 }
 
 // 炭酸の泡が上り続けるので、ビールが残っている間はずっと描く。
@@ -602,8 +627,20 @@ window.__beer = {
     for (let i = 0; i < n; i++) simulate(sec / n);
   },
   calls: { gulp: 0, aah: 0 },
+  fizzLevel: () => +fizzLevel().toFixed(3),
   layout: () => ({ turn, osTurn, width: app.style.width, height: app.style.height, transform: app.style.transform, tanHalf: +uniforms.uTanHalf.value.toFixed(4) }),
   enableSensor: () => tilt.enableSensor(),
+  // 手で傾けた状態にする（度）。パソコンでドラッグしたときと同じく、ジョッキそのものが傾いて見える。null で手を離す。
+  hold(roll, pitch = 0) {
+    tilt.state.test = null;
+    if (roll === null) {
+      tilt.state.held = false;
+      return;
+    }
+    tilt.state.held = true;
+    tilt.state.roll = (roll * Math.PI) / 180;
+    tilt.state.pitch = (pitch * Math.PI) / 180;
+  },
   calibrateNow: () => tilt.calibrate(),
   render(s = 1) {
     updateHint();
