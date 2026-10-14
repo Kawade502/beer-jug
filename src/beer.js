@@ -40,6 +40,7 @@ const FOAM_PER_SIP = 0.03; // 飲んだ量に対して、一緒に口に入る�
 // 振ると泡が立つ：ビールの炭酸が抜けて泡になる。ビール 1 に対して泡はおよそ 4 倍のかさになる。
 const SHAKE_FOAM = 50000; // いちばん強く振ったときに増える泡 (mm³/s)
 const SHAKE_FOAM_MAX = 1.5; // 振って立てられる泡は、注いだときの泡の 1.5 倍まで
+const SHAKE_KEEP = 4000; // 振っても泡にしないビール (mm³)。これより少なくなったら、もう泡は立たない
 const FOAM_EXPAND = 4;
 export const EMPTY = 6000; // これより少なければ飲み干した (mm³)
 
@@ -69,6 +70,7 @@ export function createBeer(events = {}) {
     rimD: 0,
     dome: 0,
     foaming: 0, // 振って泡が増えている速さ (mm³/s)
+    pourExtra: 0, // 注ぎ終わりに多めに立った分の泡 (mm³)
     shake: 0,
     bubAcc: 0,
   };
@@ -96,6 +98,7 @@ export function createBeer(events = {}) {
       phase: 'empty',
       volume: 0,
       foam: 0,
+      pourExtra: 0,
       pourT: -1,
       tail: -1,
       since: 0,
@@ -181,6 +184,8 @@ export function createBeer(events = {}) {
         s.pourT = -1;
         s.tail = 0;
         s.phase = 'settle';
+        // 注ぎ終わりに多めに立った分の泡。これだけ、すぐ落ち着かせる。
+        s.pourExtra = Math.max(0, s.foam - FOAM_FULL);
         s.since = 0;
       }
     }
@@ -196,7 +201,9 @@ export function createBeer(events = {}) {
     s.foaming = 0;
     s.shake = shake;
     if (shake > 0.02 && s.volume > EMPTY && (s.phase === 'ready' || s.phase === 'settle')) {
-      const room = Math.min(volumeBelow(up, s.rimD + s.dome * 0.7, s.dome) - s.volume - s.foam, FOAM_FULL * SHAKE_FOAM_MAX - s.foam);
+      // ビールを泡にしすぎて「飲み干した」ことにならないよう、少しだけは必ず残す。
+      const keep = Math.max(0, (s.volume - EMPTY - SHAKE_KEEP) * FOAM_EXPAND);
+      const room = Math.min(volumeBelow(up, s.rimD + s.dome * 0.7, s.dome) - s.volume - s.foam, FOAM_FULL * SHAKE_FOAM_MAX - s.foam, keep);
       if (room > 0) {
         const add = Math.min(SHAKE_FOAM * shake * dt, room);
         s.foam += add;
@@ -211,7 +218,12 @@ export function createBeer(events = {}) {
     if (s.phase === 'settle' || s.phase === 'ready') {
       s.since += dt;
       // 注ぎ終わりに多めに立った泡は、すぐ落ち着く（振って立てた泡は、ふつうに時間とともに痩せる）。
-      if (s.since < 10 && s.foam > FOAM_FULL) s.foam += (FOAM_FULL - s.foam) * (1 - Math.exp(-dt / 2.5));
+      s.pourExtra = Math.min(s.pourExtra, Math.max(0, s.foam - FOAM_FULL));
+      if (s.pourExtra > 0) {
+        const r = s.pourExtra * (1 - Math.exp(-dt / 2.5));
+        s.pourExtra -= r;
+        s.foam -= r;
+      }
       // 時間とともにゆっくり痩せる。
       if (s.foam > FOAM_MIN) s.foam -= (s.foam - FOAM_MIN) * (1 - Math.exp(-dt / FOAM_FADE));
       if (s.phase === 'settle' && s.since > 3) s.phase = 'ready';

@@ -165,7 +165,7 @@ export function createTilt({ onFirstReading } = {}) {
     else st.target = upFromAngles(st.roll, st.pitch);
 
     // 振っている強さ。加速度は 8〜20 m/s²、傾きの変わる速さは 7〜14 rad/s で 0〜1。
-    // ふつうに傾けて飲む動きや、手を離してばねで戻る動き（いちばん速くて 5 rad/s ほど）では立たない。
+    // ふつうに傾けて飲む動きでは立たない。
     // センサーの値はとびとびに届くので少しならし、1 回で大きく飛んだ分（補正や最初の値など）は数えない。
     if (st.lastTarget) {
       const d = Math.min(Math.hypot(...st.target.map((x, i) => x - st.lastTarget[i])), 0.3);
@@ -173,7 +173,8 @@ export function createTilt({ onFirstReading } = {}) {
     }
     st.lastTarget = [...st.target];
     const fromMotion = smooth(8, 20, st.motion);
-    const fromSpin = smooth(7, 14, st.spin);
+    // 傾きの速さで見るのは、手で動かしているとき（センサー、ドラッグ中）だけ。手を離してばねで戻る動きは数えない。
+    const fromSpin = st.sensor || st.held ? smooth(7, 14, st.spin) : 0;
     const now = Math.max(fromMotion, fromSpin, st.shakeKey ? 0.8 : 0, st.shakeTest);
     st.shake = Math.max(st.shake * Math.exp(-dt / 0.25), now);
     st.motion *= Math.exp(-dt / 0.15);
