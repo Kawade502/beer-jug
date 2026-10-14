@@ -59,9 +59,7 @@ export function createBeer(events = {}) {
     gulpT: -1,
     glugAt: -1,
     drunk: 0, // 今の一杯で飲んだ量
-    sip: 0, // 今続けて飲んでいる量（ぷはーの大きさ）
     flow: 0, // ビールが縁から流れ出ている速さ (mm³/s)
-    slurp: 0, // 泡を吸っている速さ (0〜1)
     liqD: 0,
     foamD: 0,
     rimD: 0,
@@ -99,9 +97,7 @@ export function createBeer(events = {}) {
       gulpT: -1,
       glugAt: -1,
       drunk: 0,
-      sip: 0,
       flow: 0,
-      slurp: 0,
     });
   }
 
@@ -201,14 +197,10 @@ export function createBeer(events = {}) {
 
     // ---------------- 飲む：縁を越えたぶんが、のどへ流れ込む
     // 泡が縁を越えても、描くときに縁で切れるだけで、立て直せば泡の頭が戻る。ほんの少しずつだけ減る。
-    // ズズッの音は、泡がどれだけ縁を越えているかで、控えめに鳴らす。
     const foamOver = s.foamD - (rim + s.dome * 0.7);
     if (s.foam > 0 && foamOver > 0) {
       const q = Math.min(FOAM_SPILL_K * foamOver ** 1.5, FOAM_SPILL_MAX) * dt;
       s.foam = Math.max(0, s.foam - q);
-      s.slurp = foamOver > 2 ? Math.min(0.5, foamOver / 15) : 0;
-    } else {
-      s.slurp = 0;
     }
 
     const over = s.liqD - rim;
@@ -227,15 +219,12 @@ export function createBeer(events = {}) {
         const take = Math.min(q, s.volume);
         s.volume -= take;
         s.drunk += take;
-        s.sip += take;
         s.flow = take / dt;
         // ビールは泡の下をくぐって口に入る。泡の層は液面に乗ったまま下がり、ほんの少しだけ一緒に減る。
         s.foam = Math.max(0, s.foam - take * FOAM_PER_SIP);
       }
-    } else if (s.gulpT >= 0) {
+    } else {
       s.gulpT = -1;
-      if (s.sip > 40000) events.aah?.(Math.min(1, s.sip / 200000));
-      s.sip = 0;
     }
     if (s.glugAt >= 0) {
       s.glugAt -= dt;

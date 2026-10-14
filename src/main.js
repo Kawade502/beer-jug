@@ -99,7 +99,6 @@ const tilt = createTilt({ onFirstReading: () => resize() });
 const beer = createBeer({
   gulp: () => sound.gulp(0.8 + 0.2 * Math.random()),
   glug: (r) => sound.glug(r),
-  aah: (v) => sound.aah(v),
 });
 
 const st = {
@@ -382,19 +381,18 @@ function simulate(dt) {
   }
 }
 
-// シュワシュワの強さ (0〜1)。注いでいる間ははっきり、注ぎ終わったらすぐ小さくなり、10 秒ほどでほぼ聞こえなくなる。
-// 揺らしたときと飲んでいる間だけ、かすかによみがえる。
+// シュワシュワの強さ (0〜1)。注いでいる間ははっきり、注ぎ終わったらすぐ小さくなり、10 秒ほどで消える。
 function fizzLevel() {
   const s = beer.state;
   if (s.pouring) return 1;
   if (s.volume <= EMPTY) return 0;
-  const f = 0.35 * Math.exp(-s.since / 3) + Math.min(0.15, tilt.slosh() * 0.3 + (s.flow > 0 ? 0.08 : 0));
+  const f = 0.35 * Math.exp(-s.since / 3);
   return f < 0.01 ? 0 : f;
 }
 
 function updateLoopSound() {
   const s = beer.state;
-  sound.setLoops(s.pouring, s.rimD - s.liqD, fizzLevel(), s.slurp);
+  sound.setLoops(s.pouring, s.rimD - s.liqD, fizzLevel());
 }
 
 // 炭酸の泡が上り続けるので、ビールが残っている間はずっと描く。
@@ -405,7 +403,7 @@ function isActive() {
 }
 function isBusy() {
   const s = beer.state;
-  return tilt.moving() || s.pouring > 0 || s.flow > 0 || s.slurp > 0 || s.haze > 0.004 || beer.stream() !== null;
+  return tilt.moving() || s.pouring > 0 || s.flow > 0 || s.haze > 0.004 || beer.stream() !== null;
 }
 
 let raf = 0;
@@ -626,7 +624,7 @@ window.__beer = {
     const n = Math.max(1, Math.round(sec / (1 / 60)));
     for (let i = 0; i < n; i++) simulate(sec / n);
   },
-  calls: { gulp: 0, aah: 0 },
+  calls: { gulp: 0 },
   fizzLevel: () => +fizzLevel().toFixed(3),
   layout: () => ({ turn, osTurn, width: app.style.width, height: app.style.height, transform: app.style.transform, tanHalf: +uniforms.uTanHalf.value.toFixed(4) }),
   enableSensor: () => tilt.enableSensor(),
@@ -664,17 +662,12 @@ window.__beer = {
     };
   },
 };
-// gulp と aah の回数を数える（テストで確かめる）。
+// ゴクッの回数を数える（テストで確かめる）。
 {
   const g = sound.gulp;
   sound.gulp = (v) => {
     window.__beer.calls.gulp++;
     g(v);
-  };
-  const a = sound.aah;
-  sound.aah = (v) => {
-    window.__beer.calls.aah++;
-    a(v);
   };
 }
 

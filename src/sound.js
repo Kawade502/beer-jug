@@ -3,8 +3,6 @@
 //   シュワ    泡がはじける、きめ細かいシュワー（注いでいる間と直後だけ、かすかに）
 //   ゴクッ    ひと口ごと。縁からビールが流れ込んでいる間、リズムよく続く
 //   コポッ    のどに空気が入る音
-//   ズズッ    泡を吸うとき
-//   ぷはー    たくさん飲んで口を離したとき
 //   カチン    乾杯（ジョッキどうしが当たる音）
 //   コトッ    おかわりでジョッキを置いたとき
 
@@ -142,27 +140,6 @@ export function createVoices(ctx, out) {
     tone(t, 'sine', 1180, 1180, 0, 0.04, 0.002, 0.3);
   }
 
-  // 「ぷはー」：唇がはじける音と、息を吐く音。
-  function aah(t, v = 1) {
-    const bp0 = ctx.createBiquadFilter();
-    bp0.type = 'bandpass';
-    bp0.frequency.value = 900;
-    bp0.Q.value = 1.5;
-    noiseAt(t, 0.03).connect(bp0).connect(gainAt(t, 0.35 * v, 0.001, 0.025));
-    // 息：声の通り道（フォルマント）を 2 つ通したノイズ。口が閉じていくように音色を下げる。
-    for (const [f0, f1, a] of [
-      [820, 560, 0.5],
-      [1350, 1000, 0.3],
-    ]) {
-      const bp = ctx.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.Q.value = 4;
-      bp.frequency.setValueAtTime(f0, t + 0.04);
-      bp.frequency.exponentialRampToValueAtTime(f1, t + 0.04 + 0.6 + 0.4 * v);
-      noiseAt(t + 0.04, 1.3).connect(bp).connect(gainAt(t + 0.04, 2.2 * a * (0.5 + 0.5 * v), 0.06, 0.55 + 0.45 * v));
-    }
-  }
-
   // 鳴らしっぱなしにして、音量だけを動かす音。
   const layer = (buf, rate, type, freq, q = 1) => {
     const src = ctx.createBufferSource();
@@ -189,7 +166,6 @@ export function createVoices(ctx, out) {
   fizzLp.frequency.value = 11000;
   fizz.filt.disconnect();
   fizz.filt.connect(fizzLp).connect(fizz.g);
-  const slurpN = layer(noise, 1, 'bandpass', 2400, 1.6);
 
   const loops = {
     start(t) {
@@ -197,10 +173,9 @@ export function createVoices(ctx, out) {
       bubbling.src.start(t, 0.9);
       tube.src.start(t, 0.3);
       fizz.src.start(t, 1.7);
-      slurpN.src.start(t, 1.1);
     },
-    // flow: 注ぐ勢い (0〜1), air: 液面から縁までの空気の長さ (mm), fizzy: シュワシュワ (0〜1), slurp: 泡を吸う (0〜1)
-    set(flow, air, fizzy, slurp, t) {
+    // flow: 注ぐ勢い (0〜1), air: 液面から縁までの空気の長さ (mm), fizzy: シュワシュワ (0〜1)
+    set(flow, air, fizzy, t) {
       rush.g.gain.setTargetAtTime(0.16 * flow, t, 0.05);
       bubbling.g.gain.setTargetAtTime(0.5 * flow, t, 0.05);
       // 口の開いた筒の共鳴：f ≒ 音速 / (4 × 長さ)。満ちるほど高くなる。
@@ -209,12 +184,10 @@ export function createVoices(ctx, out) {
       bubbling.filt.frequency.setTargetAtTime(f * 1.4, t, 0.08);
       tube.g.gain.setTargetAtTime(0.5 * flow, t, 0.05);
       fizz.g.gain.setTargetAtTime(0.16 * fizzy, t, 0.25);
-      slurpN.g.gain.setTargetAtTime(0.3 * slurp, t, 0.04);
-      slurpN.filt.frequency.setTargetAtTime(1800 + 1400 * slurp, t, 0.04);
     },
   };
 
-  return { gulp, glug, clink, thunk, aah, loops };
+  return { gulp, glug, clink, thunk, loops };
 }
 
 const MUTE_KEY = 'beer-jug:muted';
@@ -262,11 +235,8 @@ export function createSound() {
     thunk() {
       if (ready()) voices.thunk(ctx.currentTime);
     },
-    aah(v) {
-      if (ready()) voices.aah(ctx.currentTime, v);
-    },
-    setLoops(flow, air, fizz, slurp) {
-      if (ready()) voices.loops.set(flow, air, fizz, slurp, ctx.currentTime);
+    setLoops(flow, air, fizz) {
+      if (ready()) voices.loops.set(flow, air, fizz, ctx.currentTime);
     },
     pause() {
       if (ctx && ctx.state === 'running') ctx.suspend();
