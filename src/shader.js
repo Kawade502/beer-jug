@@ -397,22 +397,38 @@ void throughBubble(vec3 hp, vec3 c, float R, inout vec3 rd, inout vec3 p, inout 
   p = e + rd * 2.0 * EPS;
 }
 
+// 1 画素が何 mm にあたるか（main で決める）。細かい模様が画素より小さくなったら、ちらつかないよう薄める。
+float gPix = 0.2;
+
 // 泡の層の見た目。ガラスに押し付けられた泡の膜（ボロノイ）が透けて見える。
-// depth は液面からの高さ。液面に近いほど泡が大きく、ビールの色が混じる。
+// きめ細かいクリーム状の泡にする：泡は 0.4mm ほどで、膜の明暗は控えめ。液面のすぐ上だけ少し大きな泡が混じる。
+// depth は液面からの高さ (mm)。glassSide はガラス越しに見るとき 1、上から見るとき 0。
 vec3 foamColor(vec3 hp, vec3 n, float depth, float glassSide) {
   vec3 off;
-  float sc = mix(0.32, 0.75, smoothstep(0.0, 12.0, depth));
-  vec2 v = voronoi(hp * sc, off);
-  float wall = 1.0 - smoothstep(0.0, mix(0.1, 0.22, glassSide), v.y - v.x);
-  float cell = pow(clamp(1.0 - v.x * 1.25, 0.0, 1.0), 2.0);
+  // 細かい泡（0.4mm ほど）。画素より小さくなるほど模様を薄める。
+  const float FINE = 2.4;
+  vec2 vf = voronoi(hp * FINE, off);
+  float kf = smoothstep(1.0, 2.2, 1.0 / (FINE * gPix));
+  float wallF = 1.0 - smoothstep(0.0, 0.18, vf.y - vf.x);
+  float cellF = clamp(1.0 - vf.x * 1.4, 0.0, 1.0);
+  // 液面のすぐ上の、少し大きな泡（1mm ほど）。
+  const float MID = 1.0;
+  vec2 vm = voronoi(hp * MID + 7.3, off);
+  float near = 1.0 - smoothstep(0.0, 4.0, depth);
+  float wallM = 1.0 - smoothstep(0.0, 0.12, vm.y - vm.x);
+
   float wrap = dot(n, uLightL) * 0.5 + 0.5;
-  vec3 c = mix(FOAM_SHADE, FOAM_COL, 0.55 + 0.45 * wrap);
-  c *= 0.92 + 0.3 * wrap;
-  c = mix(c, c * 1.12 + 0.04, wall * glassSide);
-  c *= 1.0 - 0.18 * cell * glassSide;
-  // 液面の近くは、大きな泡越しにビールの色がのぞく。
-  float beer = 1.0 - smoothstep(0.0, 6.0, depth);
-  c = mix(c, vec3(0.95, 0.62, 0.16) * (0.5 + 0.4 * wrap), beer * 0.7);
+  vec3 c = mix(FOAM_SHADE, FOAM_COL, 0.62 + 0.38 * wrap);
+  c *= 0.95 + 0.25 * wrap;
+  // 上ほど空気を多く含んで白く、液面に近いほど少し濃い。
+  c *= mix(0.93, 1.03, smoothstep(0.0, 18.0, depth));
+  float g = mix(0.45, 1.0, glassSide);
+  // 膜は明るく、泡の中は少し暗く。泡の真ん中には小さな光の点。
+  c *= 1.0 + kf * g * (0.16 * wallF - 0.12 * cellF + 0.1 * pow(cellF, 6.0) * wrap);
+  c *= 1.0 + near * g * (0.10 * wallM - 0.06);
+  // 液面の近くは、泡越しにビールの色が少しのぞく。
+  float beer = 1.0 - smoothstep(0.0, 3.0, depth);
+  c = mix(c, vec3(0.95, 0.66, 0.2) * (0.55 + 0.4 * wrap), beer * 0.6);
   return c;
 }
 
@@ -513,7 +529,7 @@ vec3 trace(vec3 ro, vec3 rd) {
     if (kind == 3) {
       // 上から泡の層に当たった。
       vec3 n = foamNormal(hp);
-      vec3 c = foamColor(hp * 1.3, n, dot(hp, uLiq.xyz) - uLiq.w, 0.0);
+      vec3 c = foamColor(hp, n, dot(hp, uLiq.xyz) - uLiq.w, 0.0);
       float F = 0.03 + 0.5 * pow(1.0 - max(dot(-rd, n), 0.0), 5.0);
       return col + thru * (c * (1.0 - F) + F * sky(reflect(rd, n)));
     }
@@ -598,6 +614,7 @@ vec3 tonemap(vec3 c) {
 void main() {
   vec2 uv = (gl_FragCoord.xy / uRes) * 2.0 - 1.0;
   uv.x *= uRes.x / uRes.y;
+  gPix = 2.0 * uTanHalf * length(uCamPos - uPivot) / uRes.y;
   vec3 rd = normalize(uView * vec3(uv * uTanHalf + uCamShift, -1.0));
   vec3 ro = uView * (uCamPos - uPivot) + uPivot;
   vec3 c = trace(ro, rd);
