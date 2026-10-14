@@ -23,7 +23,7 @@ http://localhost:5184 を開きます。
 
 Facebook・X・LINE などに URL を貼ると、[`public/og.jpg`](public/og.jpg)（1200×630）がプレビューの画像として出ます（`index.html` の OGP と X のタグ）。
 
-- 各サービスは画像を URL ごとに覚えておく。画像を変えたら、ファイル名を変える（`og-2.jpg` など。前の画像は消さない）
+- 各サービスは画像を URL ごとに覚えておく。画像を変えたら、ファイル名を変え（`og-2.jpg` など。前の画像は消さない）、`index.html` の `og:image` と `scripts/og.mjs` の書き出し先も合わせる
 - Facebook は[シェアデバッガー](https://developers.facebook.com/tools/debug/)で「再スクレイピング」すると読み直す
 - X は投稿欄に URL を貼ると（投稿しなくても）プレビューを見られる。古いままなら、URL の後ろに `?v=2` を付けて貼る
 

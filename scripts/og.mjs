@@ -3,7 +3,8 @@
 //   npm run og                → public/og.jpg ができる（できた画像はコミットする）
 // 撮り方は shot.mjs と同じ（SwiftShader、?test、window.__beer）。
 // 横に長い画面で描くとジョッキは真ん中に来るので、その左側だけを切り出し、空いた左に文字を置く。
-// 文字のフォントは FONT にファイル（woff2 など）を渡すと埋め込む。渡さなければ端末にある丸ゴシックを使う。
+// 文字のフォントは FONT にファイル（woff2 など）を渡すと埋め込む。渡さなければ端末のフォント（Mac ならヒラギノ丸ゴシック、
+// なければ IPA P ゴシック）を使う。
 import { mkdirSync, readFileSync, statSync } from 'node:fs';
 
 const { chromium } = await import(process.env.PLAYWRIGHT || 'playwright');
