@@ -162,12 +162,15 @@ function updateCamera(w, h) {
 const _wy = new THREE.Vector3();
 const _wz = new THREE.Vector3();
 const _wx = new THREE.Vector3();
+const _up = new THREE.Vector3();
 const LIGHT_W = new THREE.Vector3(Math.sin(KEY_AZ) * Math.cos(KEY_EL), Math.sin(KEY_EL), Math.cos(KEY_AZ) * Math.cos(KEY_EL));
 
 function updateUniforms() {
+  // 液面・泡・注ぐ流れは揺れを含む上向き（up）、背景と光は揺れを含まない向き（pose）で決める。
+  // 揺らしても店の景色や映り込みは動かず、中のビールだけが揺れる。
   const up = tilt.up;
   const s = beer.state;
-  _wy.fromArray(up);
+  _wy.fromArray(tilt.pose);
   _wz.set(0, 0, 1).addScaledVector(_wy, -_wy.z);
   if (_wz.lengthSq() < 1e-4) _wz.set(0, -1, 0).addScaledVector(_wy, _wy.y);
   _wz.normalize();
@@ -206,9 +209,10 @@ function updateUniforms() {
 
   const range = beer.stream();
   if (range) {
-    // 流れの軸は、上向きに平行で STREAM_AT を通る線。
+    // 流れの軸は、上向き（シェーダーと同じ uLiq.xyz）に平行で STREAM_AT を通る線。
     const c = uniforms.uStreamC.value.fromArray(STREAM_AT);
-    c.addScaledVector(_wy, -c.dot(_wy));
+    _up.fromArray(up);
+    c.addScaledVector(_up, -c.dot(_up));
     uniforms.uStream.value.set(STREAM_R, range[0], range[1]);
   } else {
     uniforms.uStream.value.set(0, 0, 0);
