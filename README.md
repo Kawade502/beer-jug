@@ -96,6 +96,14 @@ Facebook・X・LINE などに URL を貼ると、[`public/og.jpg`](public/og.jpg
 **省エネ。** 動いている間は低い解像度で描いて引き伸ばし、フレームが重ければ自動でさらに下げます。
 傾けていないときは 2 フレームに 1 回だけ描きます。飲み干して止まったら描画を休みます。
 
+## アクセス解析
+
+公開ページでは、Cloudflare Web Analytics でアクセス数を数えています。Cookie を使わず、個々の訪問者を追跡しません（ページビュー・国・参照元・端末の種類などの集計だけ）。
+
+- 計測のトークンは [XBill](https://github.com/Kawade502/xbill-webremake) と同じ（同じ `kawade502.github.io` のサイト）。Cloudflare の画面では「フィルタを追加 → パス」で `/beer-jug/` だけを見る
+- 読み込むのは `kawade502.github.io` で開いたときだけ（`index.html` の最後）。手元の `vite`・`vite preview`・テスト・`?test` では数えない
+- 開くたび（再読み込みを含む）に 1 ページビュー。広告ブロッカーを入れている人は数えられないので、実際より少なく出る
+
 ## 確かめ方
 
 `?test` を付けて開くと描画ループが止まり、`window.__beer` から時間を進めたり傾けたりできます。

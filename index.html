@@ -63,5 +63,17 @@
       <p class="error" id="error" hidden>この端末では WebGL2 が使えないため表示できません。</p>
     </div>
     <script type="module" src="./src/main.js"></script>
+    <!-- アクセス数（Cloudflare Web Analytics。Cookie を使わない）。トークンは XBill と同じ（同じ kawade502.github.io のサイト）。
+         公開ページでだけ読み込む（localhost の vite・vite preview・Playwright のテストや、?test では数えない） -->
+    <script>
+      if (location.hostname === 'kawade502.github.io' && !new URLSearchParams(location.search).has('test')) {
+        const token = '34c626b8f1b04253a2e2a4031595493f';
+        const s = document.createElement('script');
+        s.defer = true;
+        s.src = `https://static.cloudflareinsights.com/beacon.min.js?token=${token}`;
+        s.dataset.cfBeacon = JSON.stringify({ token });
+        document.body.append(s);
+      }
+    </script>
   </body>
 </html>
