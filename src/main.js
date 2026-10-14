@@ -137,6 +137,8 @@ try {
 } catch {
   // 覚えておけない環境では、縦向きになったときに測る。
 }
+// テスト用：1 より大きいと、そのぶん引いてジョッキを小さく描く（共有用の画像で上下に余白を作る）。
+let zoomOut = 1;
 
 function updateCamera(w, h) {
   const record = touch && turn === 0 && osTurn === 0 && reportedAngle() === 0 && !naturalLandscape() && portraitOk(w, h);
@@ -153,7 +155,7 @@ function updateCamera(w, h) {
   const [rw, rh] = turn !== 0 && portrait.h && fillsScreen() ? [portrait.w, portrait.h] : [w, h];
   const aspect = rw / rh;
   // 縦長なら幅で、横長なら高さで合わせる。横長では取っ手まで入るよう少し右へずらす。
-  uniforms.uTanHalf.value = Math.max(HALF_H / DIST, HALF_W / (DIST * aspect)) * (h / rh);
+  uniforms.uTanHalf.value = Math.max(HALF_H / DIST, HALF_W / (DIST * aspect)) * (h / rh) * zoomOut;
   const camX = 14 * smoothstep(0.6, 1.0, aspect);
   uniforms.uCamPos.value.set(camX, CENTER_Y, DIST);
 }
@@ -649,6 +651,11 @@ window.__beer = {
     tilt.state.pitch = (pitch * Math.PI) / 180;
   },
   calibrateNow: () => tilt.calibrate(),
+  // 引いて描く（1 で元どおり）。scripts/og.mjs が使う。
+  zoomOut(k = 1) {
+    zoomOut = k;
+    resize();
+  },
   // 振る（0〜1）。0 でやめる。
   shake(strength) {
     tilt.state.shakeTest = strength;

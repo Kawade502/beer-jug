@@ -21,6 +21,12 @@ http://localhost:5184 を開きます。
 
 公開版：https://kawade502.github.io/beer-jug/ （`main` に push すると [GitHub Actions](.github/workflows/pages.yml) が自動でビルドして公開します）
 
+Facebook・X・LINE などに URL を貼ると、[`public/og.jpg`](public/og.jpg)（1200×630）がプレビューの画像として出ます（`index.html` の OGP と X のタグ）。
+
+- 各サービスは画像を URL ごとに覚えておく。画像を変えたら、ファイル名を変える（`og-2.jpg` など。前の画像は消さない）
+- Facebook は[シェアデバッガー](https://developers.facebook.com/tools/debug/)で「再スクレイピング」すると読み直す
+- X は投稿欄に URL を貼ると（投稿しなくても）プレビューを見られる。古いままなら、URL の後ろに `?v=2` を付けて貼る
+
 | 操作 | 動き |
 | --- | --- |
 | 開く | 空のジョッキにビールが注がれる |
@@ -100,6 +106,13 @@ npm run build && npx vite preview &
 npm run shot   # playwright が別の場所にあるときは PLAYWRIGHT=… で渡す
 ```
 
+共有用の画像は [`scripts/og.mjs`](scripts/og.mjs) が同じやり方で描いて、`public/og.jpg` に書き出します（できた画像はコミットします）。
+泡が落ち着いたジョッキを右に寄せ、左に名前を入れます。X は画像の上下を少し切り、左下にタイトルを重ねます。そのため、まわりに余白を残しています。
+
+```bash
+npm run og     # 文字のフォントは FONT=…（woff2 など）で渡せる。今の画像は Zen Maru Gothic 700
+```
+
 ## ファイル
 
 ```
@@ -111,6 +124,10 @@ src/
 ├── shader.js   シーン全体のレイトレース（GLSL）
 ├── sound.js    効果音の合成
 └── style.css
+public/og.jpg   共有したときに出る画像
+scripts/
+├── shot.mjs    場面ごとのスクリーンショット
+└── og.mjs      共有用の画像を作る
 ```
 
 AI（Claude）とのバイブコーディングで作りました。
