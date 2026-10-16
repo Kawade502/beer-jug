@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "shot": "node scripts/shot.mjs",
-    "og": "node scripts/og.mjs"
+    "og": "node scripts/og.mjs",
+    "icon": "node scripts/icon.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"

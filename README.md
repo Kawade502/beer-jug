@@ -121,6 +121,8 @@ npm run shot   # playwright が別の場所にあるときは PLAYWRIGHT=… で
 npm run og     # 文字のフォントは FONT=…（woff2 など）で渡せる。今の画像は Zen Maru Gothic 700
 ```
 
+ファビコン（`public/favicon.png`、48×48）と iPhone のホーム画面用のアイコン（`public/apple-touch-icon.png`、180×180）も、[`scripts/icon.mjs`](scripts/icon.mjs) が同じやり方で描きます（`npm run icon`）。
+
 ## ファイル
 
 ```
@@ -132,10 +134,14 @@ src/
 ├── shader.js   シーン全体のレイトレース（GLSL）
 ├── sound.js    効果音の合成
 └── style.css
-public/og.jpg   共有したときに出る画像
+public/
+├── og.jpg              共有したときに出る画像
+├── favicon.png         ファビコン
+└── apple-touch-icon.png  ホーム画面のアイコン
 scripts/
 ├── shot.mjs    場面ごとのスクリーンショット
-└── og.mjs      共有用の画像を作る
+├── og.mjs      共有用の画像を作る
+└── icon.mjs    ファビコンとホーム画面のアイコンを作る
 ```
 
 AI（Claude）とのバイブコーディングで作りました。
