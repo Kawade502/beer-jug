@@ -235,8 +235,10 @@ body {
 /* 杯数の記念に届いたときのお知らせ。おかわりの案内の少し上に出す。 */
 .award {
   position: absolute;
+  z-index: 1;
   left: 50%;
-  bottom: calc(max(18px, var(--safe-bottom, 0px)) + 56px);
+  /* 案内の帯（2 行になることもある）のすぐ上。帯の高さは main.js が --hint-h に入れる */
+  bottom: calc(max(18px, var(--safe-bottom, 0px)) + var(--hint-h, 46px) + 10px);
   transform: translateX(-50%);
   width: min(340px, calc(100% - 32px));
   display: grid;
@@ -439,7 +441,8 @@ body {
 .sbt-address {
   width: 100%;
   padding: 8px 10px;
-  font: 14px ui-monospace, Menlo, monospace;
+  /* 16px より小さいと、iPhone の Safari が入力のときに拡大して、元に戻らない */
+  font: 16px ui-monospace, Menlo, monospace;
   color: var(--ink);
   background: #0006;
   border: 1px solid #fff6e44d;

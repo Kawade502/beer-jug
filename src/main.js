@@ -633,6 +633,13 @@ function openBadges() {
 }
 badgesButton.hidden = cups.count === 0;
 badgesButton.addEventListener('click', openBadges);
+// 別のタブで数えたら、こちらの表示も合わせる。
+window.addEventListener('storage', (e) => {
+  if (e.key !== 'beer-jug:cups:v1') return;
+  cups.reload();
+  badgesButton.hidden = cups.count === 0;
+  badges.refresh();
+});
 document.getElementById('award-open').addEventListener('click', openBadges);
 document.getElementById('award-close').addEventListener('click', () => {
   award.hidden = true;
@@ -657,6 +664,14 @@ function updateHint() {
   let text = s.phase === 'pour' || s.phase === 'empty' ? '' : `残り ${ml}ml`;
   if (s.phase === 'empty' && st.cup) text = `${st.cup}杯目`;
   if (leftText.textContent !== text) leftText.textContent = text;
+  // 記念のお知らせは、案内の帯の上に出す。帯の高さ（1 行か 2 行か）に合わせる。
+  if (!award.hidden) {
+    const h = hint.offsetHeight;
+    if (h && award.dataset.h !== String(h)) {
+      award.dataset.h = String(h);
+      award.style.setProperty('--hint-h', `${h}px`);
+    }
+  }
 }
 
 // ---------------------------------------------------------------- テスト用の入口

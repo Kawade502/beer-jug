@@ -191,8 +191,14 @@ export function createBadges({ panel, list, count, closeButton, opener, cups }) 
   }
 
   closeButton.addEventListener('click', close);
+  // 外側の暗いところを押したら閉じる。アドレスを選ぶドラッグが外で終わったときは閉じない（押し始めも外のときだけ）。
+  let downOnBackdrop = false;
+  panel.addEventListener('pointerdown', (e) => {
+    downOnBackdrop = e.target === panel;
+  });
   panel.addEventListener('click', (e) => {
-    if (e.target === panel) close(); // 外側の暗いところを押したら閉じる
+    if (e.target === panel && downOnBackdrop) close();
+    downOnBackdrop = false;
   });
   // 申請のあとはボタンが隠れて、選択が箱の外へ出ることがあるので、Esc はページ全体で受ける。
   document.addEventListener('keydown', (e) => {
