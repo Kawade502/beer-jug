@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "shot": "node scripts/shot.mjs",
     "og": "node scripts/og.mjs",
-    "icon": "node scripts/icon.mjs"
+    "icon": "node scripts/icon.mjs",
+    "sbt-images": "node scripts/sbt-images.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"

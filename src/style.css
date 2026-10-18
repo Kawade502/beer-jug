@@ -64,13 +64,23 @@ body {
   display: none;
 }
 
-.level {
+.level,
+.badges {
   right: calc(max(12px, var(--safe-right, 0px)) + 48px);
+}
+
+/* 水平器のボタンが出ているときは、記念のボタンはその左。 */
+.level:not([hidden]) + .badges {
+  right: calc(max(12px, var(--safe-right, 0px)) + 96px);
 }
 
 .round:focus-visible,
 .cheers:focus-visible,
-#again:focus-visible {
+#again:focus-visible,
+.award button:focus-visible,
+.panel button:focus-visible,
+.panel summary:focus-visible,
+.panel input:focus-visible {
   outline: 2px solid var(--amber);
   outline-offset: 2px;
 }
@@ -220,4 +230,262 @@ body {
   position: absolute;
   inset: auto 16px 50% 16px;
   text-align: center;
+}
+
+/* 杯数の記念に届いたときのお知らせ。おかわりの案内の少し上に出す。 */
+.award {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(18px, var(--safe-bottom, 0px)) + 56px);
+  transform: translateX(-50%);
+  width: min(340px, calc(100% - 32px));
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 12px 14px;
+  background: #2a1606e6;
+  border: 1px solid #f2a92266;
+  border-radius: 16px;
+  box-shadow: 0 6px 24px #0007;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.award[hidden] {
+  display: none;
+}
+
+.award-text {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-right: 22px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+#award-open {
+  justify-self: start;
+  font: inherit;
+  font-weight: 600;
+  color: #2a1606;
+  background: var(--amber);
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 16px;
+  cursor: pointer;
+}
+
+.award-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--ink-soft);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+/* 杯数の記念の一覧。暗い幕の上に、縦に流せる箱を出す。 */
+.panel {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(16px, var(--safe-top, 0px)) max(16px, var(--safe-right, 0px)) max(16px, var(--safe-bottom, 0px))
+    max(16px, var(--safe-left, 0px));
+  background: #0009;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.panel-box {
+  width: min(420px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 16px 18px 18px;
+  background: #24150bf2;
+  border: 1px solid #fff6e42e;
+  border-radius: 18px;
+  box-shadow: 0 10px 40px #000a;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.panel-close {
+  width: 36px;
+  height: 36px;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.panel-count {
+  margin: 6px 0 12px;
+  color: var(--ink-soft);
+}
+
+.panel-count b {
+  color: var(--amber);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.badge {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 8px 12px;
+  align-items: start;
+  padding: 10px;
+  background: #fff6e40d;
+  border-radius: 14px;
+}
+
+.badge img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.badge[data-state='locked'] img {
+  filter: grayscale(1) brightness(0.55);
+}
+
+.badge-name {
+  margin: 0;
+  font-weight: 700;
+}
+
+.badge-need {
+  margin-left: 8px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.badge-status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.badge[data-state='reached'] .badge-status {
+  color: var(--amber);
+}
+
+.bar {
+  height: 6px;
+  margin-top: 6px;
+  background: #fff6e41f;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--amber);
+}
+
+.sbt-box {
+  grid-column: 1 / -1;
+}
+
+.sbt-box summary {
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--amber);
+}
+
+.sbt-notes {
+  margin: 8px 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.sbt-address {
+  width: 100%;
+  padding: 8px 10px;
+  font: 14px ui-monospace, Menlo, monospace;
+  color: var(--ink);
+  background: #0006;
+  border: 1px solid #fff6e44d;
+  border-radius: 10px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.sbt-consent {
+  display: block;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.sbt-submit {
+  font: inherit;
+  font-weight: 600;
+  color: #2a1606;
+  background: var(--amber);
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 18px;
+  cursor: pointer;
+}
+
+.sbt-submit:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sbt-form [hidden] {
+  display: none;
+}
+
+.sbt-msg {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--amber);
+}
+
+.sbt-msg:empty {
+  display: none;
+}
+
+.panel-foot {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--ink-soft);
 }

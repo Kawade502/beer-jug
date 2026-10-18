@@ -5,6 +5,8 @@ import { createBeer, EMPTY, STREAM_AT, STREAM_R } from './beer.js';
 import { BLIT_FRAG, KEY_AZ, KEY_EL, TRACE_FRAG, VERT } from './shader.js';
 import { createSound } from './sound.js';
 import { createTilt } from './tilt.js';
+import { createCups } from './cups.js';
+import { createBadges } from './badges.js';
 
 const STEP = 1 / 120;
 const DIST = 720; // カメラからジョッキの軸までの距離 (mm)
@@ -26,6 +28,9 @@ const again = document.getElementById('again');
 const muteButton = document.getElementById('mute');
 const levelButton = document.getElementById('level');
 const leftText = document.getElementById('left');
+const badgesButton = document.getElementById('badges');
+const award = document.getElementById('award');
+const awardText = document.getElementById('award-text');
 
 document.documentElement.dataset.input = touch ? 'touch' : 'mouse';
 
@@ -99,6 +104,17 @@ const tilt = createTilt({ onFirstReading: () => resize() });
 const beer = createBeer({
   gulp: () => sound.gulp(0.8 + 0.2 * Math.random()),
   glug: (r) => sound.glug(r),
+  empty: () => onEmpty(),
+});
+// 飲み干した杯数。?test のときは保存しない（テストのたびに 0 から）。
+const cups = createCups({ persist: !testMode });
+const badges = createBadges({
+  panel: document.getElementById('panel'),
+  list: document.getElementById('badge-list'),
+  count: document.getElementById('cup-count'),
+  closeButton: document.getElementById('panel-close'),
+  opener: badgesButton,
+  cups,
 });
 
 const st = {
@@ -109,6 +125,7 @@ const st = {
   rotateHinted: false, // 縦向きのロックを案内したか
   notice: '',
   noticeT: 0,
+  cup: 0, // 今の一杯が何杯目か（飲み干したときに決まる）
 };
 
 // ---------------------------------------------------------------- カメラと描画
@@ -497,6 +514,8 @@ canvas.addEventListener('pointercancel', endPointer);
 const KEYS = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
 window.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  // 記念の一覧を開いている間（アドレスを打っている間など）は、キーで傾けたり注いだりしない。
+  if (badges.isOpen()) return;
   sound.unlock();
   if (KEYS[e.key]) {
     tilt.state.keys[KEYS[e.key]] = true;
@@ -556,6 +575,8 @@ async function startCheers() {
 cheers.addEventListener('click', startCheers);
 
 function refill() {
+  st.cup = 0;
+  award.hidden = true;
   beer.pour();
   sound.thunk();
   wake();
@@ -591,6 +612,32 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// 飲み干した。今の一杯をちゃんと飲んでいたら（200ml 以上）、1 杯と数える。
+// 記念に届いたら知らせる。
+const CUP_MIN = 200 * 1000;
+function onEmpty() {
+  if (beer.state.drunk < CUP_MIN) return;
+  const hit = cups.add();
+  st.cup = cups.count;
+  badgesButton.hidden = false;
+  if (hit) {
+    awardText.textContent = `🍺「${hit.name}」の記念に届きました！（${hit.cups}杯）`;
+    award.hidden = false;
+  }
+  badges.refresh();
+}
+
+function openBadges() {
+  award.hidden = true;
+  badges.open();
+}
+badgesButton.hidden = cups.count === 0;
+badgesButton.addEventListener('click', openBadges);
+document.getElementById('award-open').addEventListener('click', openBadges);
+document.getElementById('award-close').addEventListener('click', () => {
+  award.hidden = true;
+});
+
 function showNotice(name, seconds) {
   st.notice = name;
   st.noticeT = seconds;
@@ -607,7 +654,8 @@ function updateHint() {
   if (st.notice) state = st.notice;
   if (hint.dataset.state !== state) hint.dataset.state = state;
   const ml = Math.round(s.volume / 1000);
-  const text = s.phase === 'pour' || s.phase === 'empty' ? '' : `残り ${ml}ml`;
+  let text = s.phase === 'pour' || s.phase === 'empty' ? '' : `残り ${ml}ml`;
+  if (s.phase === 'empty' && st.cup) text = `${st.cup}杯目`;
   if (leftText.textContent !== text) leftText.textContent = text;
 }
 
@@ -651,6 +699,19 @@ window.__beer = {
     tilt.state.pitch = (pitch * Math.PI) / 180;
   },
   calibrateNow: () => tilt.calibrate(),
+  // 杯数の記念。cups() で今の記録、setCups(n) で杯数を決める。
+  cups: () => ({
+    count: cups.count,
+    cup: st.cup,
+    reached: Object.fromEntries(cups.BADGES.map((b) => [b.id, cups.reached(b.id)])),
+    applied: Object.fromEntries(cups.BADGES.map((b) => [b.id, cups.applied(b.id)])),
+    award: award.hidden ? '' : awardText.textContent,
+  }),
+  setCups(n) {
+    cups.set(n);
+    badgesButton.hidden = cups.count === 0;
+    badges.refresh();
+  },
   // 引いて描く（1 で元どおり）。scripts/og.mjs が使う。
   zoomOut(k = 1) {
     zoomOut = k;

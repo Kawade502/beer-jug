@@ -43,6 +43,19 @@
           <circle cx="12" cy="15" r="1.6" />
         </svg>
       </button>
+      <button type="button" class="round badges" id="badges" aria-label="杯数の記念" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8.5 3l2.6 6.4M15.5 3l-2.6 6.4" />
+          <circle cx="12" cy="15" r="5.6" />
+          <path d="M12 12.2l.9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2-1.45-1.4 2-.3z" />
+        </svg>
+      </button>
+      <!-- 杯数の記念に届いたときのお知らせ -->
+      <div class="award" id="award" role="status" hidden>
+        <p class="award-text" id="award-text"></p>
+        <button type="button" id="award-open">記念を見る</button>
+        <button type="button" class="award-close" id="award-close" aria-label="お知らせを閉じる">×</button>
+      </div>
       <div class="hint" id="hint" data-state="pour">
         <p class="line">
           <span class="msg" data-for="pour">注いでいます…</span>
@@ -63,6 +76,18 @@
         <span class="small touch">タップで音と傾きセンサーがオンになります</span>
         <span class="small mouse">クリックで音がオンになります</span>
       </button>
+      <!-- 杯数の記念の一覧と、記念の SBT の申請（src/badges.js） -->
+      <div class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title" hidden>
+        <div class="panel-box">
+          <div class="panel-head">
+            <h2 id="panel-title">杯数の記念</h2>
+            <button type="button" class="panel-close" id="panel-close" aria-label="閉じる">×</button>
+          </div>
+          <p class="panel-count">飲み干した杯数：<b id="cup-count">0</b> 杯</p>
+          <ul class="badge-list" id="badge-list"></ul>
+          <p class="panel-foot">杯数は、この端末のブラウザにだけ記録しています。ブラウザのデータを消すと 0 杯に戻ります。</p>
+        </div>
+      </div>
       <p class="error" id="error" hidden>この端末では WebGL2 が使えないため表示できません。</p>
     </div>
     <script type="module" src="./src/main.js"></script>
