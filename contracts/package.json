@@ -1,0 +1,21 @@
+{
+  "name": "beer-jug-sbt",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ビールジョッキの記念 SBT のコントラクトとテスト",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@ethereumjs/common": "^10.1.3",
+    "@ethereumjs/evm": "^10.1.3",
+    "@ethereumjs/util": "^10.1.3",
+    "@openzeppelin/contracts": "5.6.1",
+    "ethers": "^6.17.0",
+    "solc": "0.8.29"
+  },
+  "overrides": {
+    "tmp": "^0.2.6"
+  }
+}
