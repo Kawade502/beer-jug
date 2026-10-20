@@ -1,2 +1,5 @@
 node_modules
 build
+# 運営者の秘密鍵などを入れるファイル（deploy.mjs・verify.mjs が読む）。GitHub に上げない
+.env
+.env.*

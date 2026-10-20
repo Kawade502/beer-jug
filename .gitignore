@@ -1,3 +1,7 @@
 node_modules
 dist
 shots
+
+# 秘密の値を入れるファイル
+.env
+.env.*
