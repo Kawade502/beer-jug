@@ -108,6 +108,16 @@ Facebook・X・LINE などに URL を貼ると、[`public/og.jpg`](public/og.jpg
 - 杯数は自己申告なので、運営者が内容を見て、後日、手作業で発行する（発行は保証しない）。SBT は Polygon に発行し、記録されるのは受取アドレス・記念の種類・発行した日・通し番号。金銭的な価値はなく、受け取った人が自分で消せる
 - コントラクトは [`contracts/`](contracts/)（Remix でのデプロイと発行の手順も）。絵は `public/sbt/`（[`scripts/sbt-images.mjs`](scripts/sbt-images.mjs) がアプリで描いて作る。`npm run sbt-images`）
 
+### デプロイ済みコントラクト（Polygon Mainnet）
+
+| 項目 | 値 |
+| --- | --- |
+| コントラクトアドレス | `0x7CF5663c1afa9123a3aB94800aF65ffCB2456ef2` |
+| PolygonScan | https://polygonscan.com/address/0x7CF5663c1afa9123a3aB94800aF65ffCB2456ef2 |
+| デプロイ日 | 2026-10-20 |
+| デプロイアカウント | `0x567FbBc7694B6429f9B0C2691257d5CdEe148483` |
+| 取引ハッシュ | `0x5ed07b990cbaf84238dd19436b9834ef4b2d7efacbdaae3b1dd4940c286b9d0a` |
+
 ## アクセス解析
 
 公開ページでは、Cloudflare Web Analytics でアクセス数を数えています。Cookie を使わず、個々の訪問者を追跡しません（ページビュー・国・参照元・端末の種類などの集計だけ）。
