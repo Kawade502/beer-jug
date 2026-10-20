@@ -260,10 +260,25 @@ body {
 
 .award-text {
   grid-column: 1 / -1;
+  display: grid;
+  gap: 2px;
   margin: 0;
   padding-right: 22px;
-  font-size: 15px;
   line-height: 1.5;
+}
+
+.award-title {
+  font-size: 16px;
+}
+
+.award-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* 言葉の途中で改行しない（改行するなら「を」のあと） */
+.award-sub span {
+  display: inline-block;
 }
 
 #award-open {

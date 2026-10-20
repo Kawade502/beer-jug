@@ -30,7 +30,7 @@ const levelButton = document.getElementById('level');
 const leftText = document.getElementById('left');
 const badgesButton = document.getElementById('badges');
 const award = document.getElementById('award');
-const awardText = document.getElementById('award-text');
+const awardTitle = document.getElementById('award-title');
 
 document.documentElement.dataset.input = touch ? 'touch' : 'mouse';
 
@@ -621,15 +621,17 @@ function onEmpty() {
   st.cup = cups.count;
   badgesButton.hidden = false;
   if (hit) {
-    awardText.textContent = `🍺「${hit.name}」の記念に届きました！（${hit.cups}杯）`;
+    awardTitle.textContent = `🏅 ${hit.cups}杯達成！「${hit.name}」`;
+    award.dataset.badge = hit.id;
     award.hidden = false;
   }
   badges.refresh();
 }
 
-function openBadges() {
+// id を渡すと、その記念の申請欄を開いた状態で一覧を開く（お知らせの「申し込みへ」から）。
+function openBadges(id) {
   award.hidden = true;
-  badges.open();
+  badges.open(typeof id === 'string' ? id : '');
 }
 badgesButton.hidden = cups.count === 0;
 badgesButton.addEventListener('click', openBadges);
@@ -640,7 +642,7 @@ window.addEventListener('storage', (e) => {
   badgesButton.hidden = cups.count === 0;
   badges.refresh();
 });
-document.getElementById('award-open').addEventListener('click', openBadges);
+document.getElementById('award-open').addEventListener('click', () => openBadges(award.dataset.badge));
 document.getElementById('award-close').addEventListener('click', () => {
   award.hidden = true;
 });
@@ -720,7 +722,7 @@ window.__beer = {
     cup: st.cup,
     reached: Object.fromEntries(cups.BADGES.map((b) => [b.id, cups.reached(b.id)])),
     applied: Object.fromEntries(cups.BADGES.map((b) => [b.id, cups.applied(b.id)])),
-    award: award.hidden ? '' : awardText.textContent,
+    award: award.hidden ? '' : award.querySelector('.award-text').textContent,
   }),
   setCups(n) {
     cups.set(n);

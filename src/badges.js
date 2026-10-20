@@ -50,11 +50,19 @@ export function createBadges({ panel, list, count, closeButton, opener, cups }) 
     return !panel.hidden;
   }
 
-  function open() {
+  // id があれば、その記念の申請欄を開いて、見えるところまで動かす。
+  function open(id = '') {
     lastFocus = document.activeElement;
     render();
     panel.hidden = false;
-    closeButton.focus();
+    const box = id && list.querySelector(`#sbt-${id}-address`)?.closest('details');
+    if (box) {
+      box.open = true;
+      box.scrollIntoView({ block: 'start' });
+      box.querySelector('summary').focus();
+    } else {
+      closeButton.focus();
+    }
   }
 
   function close() {
