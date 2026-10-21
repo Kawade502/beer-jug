@@ -2,6 +2,7 @@
 // 申請は XBill Web Remake と同じ Worker（xbill-ranking）が受け付け、発行は運営者が後日、手作業で行う。
 // 作りと文言は XBill の申請欄（src/game.html の sbtRequestBox）に合わせている。
 import { checksumOk } from './eip55.js';
+import { CONTRACT, isIssued } from './chain.js';
 
 const API = 'https://xbill-ranking.xbill-ranking.workers.dev/beer-sbt-request';
 const PUBLIC_HOST = 'kawade502.github.io';
@@ -29,6 +30,8 @@ const TEXT = {
   closed: '現在、申請は受け付けていません。',
   error: '送信できませんでした。通信状況を確認して、もう一度お試しください。',
   publicOnly: `申請は公開ページ（https://${PUBLIC_HOST}/beer-jug/）でだけできます。`,
+  scan: 'PolygonScan で見る',
+  wallet: 'MetaMask では「NFT」のタブに出ます。出ないときは「NFT をインポート」で、コントラクトのアドレス（0x7CF5…6ef2）と番号（PolygonScan で分かります）を入れてください。',
 };
 
 function el(tag, attrs = {}, ...children) {
@@ -42,9 +45,10 @@ function el(tag, attrs = {}, ...children) {
   return n;
 }
 
-// panel: 一覧の箱（#panel）。cups: createCups() の戻り値。
-export function createBadges({ panel, list, count, closeButton, opener, cups }) {
+// panel: 一覧の箱（#panel）。cups: createCups() の戻り値。onChange: 発行が分かったときなどに呼ぶ（メダルの点）。
+export function createBadges({ panel, list, count, closeButton, opener, cups, onChange = () => {} }) {
   let lastFocus = null;
+  let checking = false;
 
   function isOpen() {
     return !panel.hidden;
@@ -55,6 +59,9 @@ export function createBadges({ panel, list, count, closeButton, opener, cups }) 
     lastFocus = document.activeElement;
     render();
     panel.hidden = false;
+    cups.markSeen();
+    onChange();
+    checkMinted();
     const box = id && list.querySelector(`#sbt-${id}-address`)?.closest('details');
     if (box) {
       box.open = true;
@@ -87,9 +94,10 @@ export function createBadges({ panel, list, count, closeButton, opener, cups }) 
   function item(b) {
     const reached = cups.reached(b.id);
     const applied = cups.applied(b.id);
-    const state = applied ? 'applied' : reached ? 'reached' : 'locked';
+    const state = applied?.minted ? 'minted' : applied ? 'applied' : reached ? 'reached' : 'locked';
     let status;
-    if (applied) status = `申請済み（${applied.address}、${applied.at}）`;
+    if (state === 'minted') status = `🎉 発行されました（${applied.minted} に確認）`;
+    else if (applied) status = `申請済み（${applied.address}、${applied.at}）`;
     else if (reached) status = `${reached} に達成`;
     else status = `あと ${b.cups - cups.count} 杯`;
     const body = el(
@@ -98,6 +106,12 @@ export function createBadges({ panel, list, count, closeButton, opener, cups }) 
       el('p', { class: 'badge-name' }, `「${b.name}」`, el('span', { class: 'badge-need' }, `${b.cups}杯`)),
       el('p', { class: 'badge-status' }, status),
     );
+    if (state === 'minted') {
+      body.append(
+        el('p', { class: 'badge-links' }, el('a', { href: `https://polygonscan.com/token/${CONTRACT}?a=${applied.full}`, target: '_blank', rel: 'noopener' }, TEXT.scan)),
+        el('p', { class: 'badge-note' }, TEXT.wallet),
+      );
+    }
     if (state === 'locked') {
       const bar = el('span');
       bar.style.width = `${Math.round((100 * cups.count) / b.cups)}%`;
@@ -198,6 +212,32 @@ export function createBadges({ panel, list, count, closeButton, opener, cups }) 
     return box;
   }
 
+  // 申請した記念が発行されたかを、Polygon から読んで確かめる（読めなければ何もしない。次の機会にまた試す）。
+  async function checkMinted() {
+    const todo = cups.pending();
+    if (checking || !todo.length) return;
+    checking = true;
+    try {
+      let found = false;
+      for (const b of todo) {
+        const a = cups.applied(b.id);
+        if (a && (await isIssued(a.full, b.kind)) === true) {
+          cups.markMinted(b.id);
+          found = true;
+        }
+      }
+      if (found) {
+        if (isOpen()) {
+          cups.markSeen();
+          refresh();
+        }
+        onChange();
+      }
+    } finally {
+      checking = false;
+    }
+  }
+
   closeButton.addEventListener('click', close);
   // 外側の暗いところを押したら閉じる。アドレスを選ぶドラッグが外で終わったときは閉じない（押し始めも外のときだけ）。
   let downOnBackdrop = false;
@@ -213,5 +253,5 @@ export function createBadges({ panel, list, count, closeButton, opener, cups }) 
     if (e.key === 'Escape' && isOpen()) close();
   });
 
-  return { open, close, isOpen, refresh };
+  return { open, close, isOpen, refresh, checkMinted };
 }

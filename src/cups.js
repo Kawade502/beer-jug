@@ -3,9 +3,10 @@
 // 記念の SBT を申請したときは、その記念を「申請済み」として覚えておく。
 
 export const BADGES = [
-  { id: 'kanpai', name: '乾杯', cups: 2, color: 'bronze' },
-  { id: 'joren', name: '常連さん', cups: 5, color: 'silver' },
-  { id: 'meiyo', name: '名誉店主', cups: 10, color: 'gold' },
+  // kind は、コントラクト（contracts/BeerJugSBT.sol）での種類の番号
+  { id: 'kanpai', name: '乾杯', cups: 2, kind: 1, color: 'bronze' },
+  { id: 'joren', name: '常連さん', cups: 5, kind: 2, color: 'silver' },
+  { id: 'meiyo', name: '名誉店主', cups: 10, kind: 3, color: 'gold' },
 ];
 
 const KEY = 'beer-jug:cups:v1';
@@ -68,12 +69,40 @@ export function createCups({ persist = true } = {}) {
     add,
     // 別のタブが書いた記録を読み直す。
     reload: load,
-    // 申請を受け付けてもらった。アドレスは全体を残さず、確かめられるだけの形で覚える。
+    // 申請を受け付けてもらった。表示には伏せ字を使い、発行されたかを確かめるために全体（full）も
+    // この端末の中にだけ覚えておく（サーバーには送らない）。
     markApplied(id, address, now = new Date()) {
       load();
-      data.applied[id] = { address: `${address.slice(0, 6)}…${address.slice(-4)}`, at: ymd(now) };
+      data.applied[id] = { address: `${address.slice(0, 6)}…${address.slice(-4)}`, full: address, at: ymd(now) };
       save();
     },
+    // 発行されたのを確かめた。seen は、記念の一覧で見てもらったか（メダルのボタンの点を消す）。
+    markMinted(id, now = new Date()) {
+      load();
+      const a = data.applied[id];
+      if (!a || a.minted) return;
+      a.minted = ymd(now);
+      a.seen = false;
+      save();
+    },
+    markSeen() {
+      load();
+      let changed = false;
+      for (const a of Object.values(data.applied)) {
+        if (a && a.minted && !a.seen) {
+          a.seen = true;
+          changed = true;
+        }
+      }
+      if (changed) save();
+    },
+    // まだ見てもらっていない発行があるか。
+    unseen: () => Object.values(data.applied).some((a) => a && a.minted && !a.seen),
+    // 発行されたかを確かめる記念（アドレス全体を覚えていて、まだ発行を確かめていないもの）。
+    pending: () => BADGES.filter((b) => {
+      const a = data.applied[b.id];
+      return a && typeof a.full === 'string' && !a.minted;
+    }),
     // テスト用：杯数をそのまま決める（届いた記念も合わせる）。
     set(n) {
       data = blank();

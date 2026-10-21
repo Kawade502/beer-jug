@@ -115,6 +115,7 @@ const badges = createBadges({
   closeButton: document.getElementById('panel-close'),
   opener: badgesButton,
   cups,
+  onChange: () => updateBadgesButton(),
 });
 
 const st = {
@@ -633,13 +634,21 @@ function openBadges(id) {
   award.hidden = true;
   badges.open(typeof id === 'string' ? id : '');
 }
-badgesButton.hidden = cups.count === 0;
+// メダルのボタン。1 杯飲み干したら出す。まだ見ていない発行があれば点を付ける。
+function updateBadgesButton() {
+  badgesButton.hidden = cups.count === 0;
+  badgesButton.dataset.dot = String(cups.unseen());
+  badgesButton.setAttribute('aria-label', cups.unseen() ? '杯数の記念（発行されたものがあります）' : '杯数の記念');
+}
+updateBadgesButton();
 badgesButton.addEventListener('click', openBadges);
+// 申請した記念が発行されていないか、開いたときに一度だけ確かめる。
+badges.checkMinted();
 // 別のタブで数えたら、こちらの表示も合わせる。
 window.addEventListener('storage', (e) => {
   if (e.key !== 'beer-jug:cups:v1') return;
   cups.reload();
-  badgesButton.hidden = cups.count === 0;
+  updateBadgesButton();
   badges.refresh();
 });
 document.getElementById('award-open').addEventListener('click', () => openBadges(award.dataset.badge));
@@ -726,7 +735,7 @@ window.__beer = {
   }),
   setCups(n) {
     cups.set(n);
-    badgesButton.hidden = cups.count === 0;
+    updateBadgesButton();
     badges.refresh();
   },
   // 引いて描く（1 で元どおり）。scripts/og.mjs が使う。

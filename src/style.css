@@ -417,8 +417,38 @@ body {
   color: var(--ink-soft);
 }
 
-.badge[data-state='reached'] .badge-status {
+.badge[data-state='reached'] .badge-status,
+.badge[data-state='minted'] .badge-status {
   color: var(--amber);
+}
+
+.badge-links {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.badge-links a {
+  color: var(--amber);
+}
+
+.badge-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* まだ見ていない発行があるときの点 */
+.badges[data-dot='true']::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  background: var(--amber);
+  border: 2px solid var(--bg);
+  border-radius: 50%;
 }
 
 .bar {

@@ -105,6 +105,7 @@ Facebook・X・LINE などに URL を貼ると、[`public/og.jpg`](public/og.jpg
 - 1 杯と数えるのは、注いだビールを 200ml 以上飲んで、飲み干したとき（[`src/cups.js`](src/cups.js)）。履歴や Cookie（サイトのデータ）を消すと 0 杯に戻る（キャッシュを消すだけなら残る）。別のブラウザや端末へは引き継がない
 - 申請は Ethereum や Polygon で使うウォレットのアドレス（0x で始まる42文字）で行う。打ち間違いは EIP-55 のチェックサムで見つける（[`src/eip55.js`](src/eip55.js)）
 - 申請を受け付けるのは XBill と同じ Worker（`POST /beer-sbt-request`）。送るのは、アドレス・記念の種類・杯数だけ。公開ページ（`kawade502.github.io`）からだけ送る
+- 申請すると、アドレス全体をこの端末にだけ覚えておき、記念の一覧を開いたときなどに、発行されたかを Polygon から読んで確かめる（読むだけ。[`src/chain.js`](src/chain.js)）。発行されていれば「🎉 発行されました」と PolygonScan へのリンクを出し、まだ見ていなければメダルのボタンに点を付ける。申請した方の連絡先は受け取らないので、運営者から知らせる代わりにこうしている
 - 杯数は自己申告なので、運営者が内容を見て、後日、手作業で発行する（発行は保証しない）。SBT は Polygon に発行し、記録されるのは受取アドレス・記念の種類・発行した日・通し番号。金銭的な価値はなく、受け取った人が自分で消せる
 - コントラクトは [`contracts/`](contracts/)（Remix でのデプロイと発行の手順も）。絵は `public/sbt/`（[`scripts/sbt-images.mjs`](scripts/sbt-images.mjs) がアプリで描いて作る。`npm run sbt-images`）
 
@@ -156,6 +157,7 @@ src/
 ├── cups.js     飲み干した杯数と、杯数の記念
 ├── badges.js   記念の一覧と、記念の SBT の申請
 ├── eip55.js    ウォレットのアドレスの打ち間違いを見つける
+├── chain.js    記念の SBT が発行されたかを、Polygon から読む
 ├── shader.js   シーン全体のレイトレース（GLSL）
 ├── sound.js    効果音の合成
 └── style.css
