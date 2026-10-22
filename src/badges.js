@@ -109,7 +109,7 @@ export function createBadges({ panel, list, count, closeButton, opener, cups, on
     );
     if (state === 'minted') {
       body.append(
-        el('p', { class: 'badge-links' }, el('a', { href: `https://polygonscan.com/token/${CONTRACT}?a=${applied.full}`, target: '_blank', rel: 'noopener' }, TEXT.scan)),
+        el('p', { class: 'badge-links' }, el('a', { href: applied.full ? `https://polygonscan.com/token/${CONTRACT}?a=${encodeURIComponent(applied.full)}` : `https://polygonscan.com/token/${CONTRACT}`, target: '_blank', rel: 'noopener' }, TEXT.scan)),
         el('p', { class: 'badge-note' }, TEXT.wallet),
       );
     }

@@ -10,6 +10,9 @@ export const BADGES = [
 ];
 
 const KEY = 'beer-jug:cups:v1';
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
 
 // 端末の時計の日付（日本なら日本時間）。toISOString だと、日本の朝 9 時までは前の日になる。
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -24,11 +27,37 @@ export function createCups({ persist = true } = {}) {
     if (!persist) return;
     try {
       const v = JSON.parse(localStorage.getItem(KEY));
-      const obj = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
-      if (v && Number.isInteger(v.count) && v.count >= 0) data = { count: v.count, reached: obj(v.reached), applied: obj(v.applied) };
+      if (v && Number.isInteger(v.count) && v.count >= 0 && v.count <= 1e6) {
+        data = { count: v.count, reached: cleanReached(v.reached), applied: cleanApplied(v.applied) };
+      }
     } catch {
       // 読めない環境（プライベートブラウズなど）では、この回だけ数える。
     }
+  }
+
+  // 保存した記録は、同じ kawade502.github.io の別のページからも書き換えられるので、形を確かめてから使う。
+  // 合わないものは捨てる（記念の種類・日付・アドレスの形）。
+  function cleanReached(x) {
+    const out = {};
+    if (!isObj(x)) return out;
+    for (const b of BADGES) if (DATE_RE.test(x[b.id])) out[b.id] = x[b.id];
+    return out;
+  }
+  function cleanApplied(x) {
+    const out = {};
+    if (!isObj(x)) return out;
+    for (const b of BADGES) {
+      const a = x[b.id];
+      if (!isObj(a) || !DATE_RE.test(a.at) || typeof a.address !== 'string' || a.address.length > 20) continue;
+      const c = { address: a.address, at: a.at };
+      if (ADDRESS_RE.test(a.full)) c.full = a.full;
+      if (DATE_RE.test(a.minted)) {
+        c.minted = a.minted;
+        c.seen = a.seen === true;
+      }
+      out[b.id] = c;
+    }
+    return out;
   }
 
   function blank() {

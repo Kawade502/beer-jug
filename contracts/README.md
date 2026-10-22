@@ -28,7 +28,7 @@ package.json     テスト用
    デプロイしたアカウントが運営者（owner）になり、mint できるのはそのアカウントだけです。
 2. **MetaMask のネットワークを Polygon にする。** 左上のネットワーク一覧で「Polygon Mainnet」を選びます。
    一覧に無ければ「ネットワークを追加」から Polygon Mainnet を追加します（チェーン ID 137、通貨 POL、エクスプローラー https://polygonscan.com）。
-3. **ガス代の POL を少し。** 目安は次のとおり（テストで測った値）。ガス代が 50 gwei なら、デプロイで約 0.18 POL、mint 1 件で約 0.007 POL です。混んでいると数倍になるので、1 POL ほどあれば安心です。
+3. **ガス代の POL を少し。** 使うガスの量は次のとおり（テストで測った値）。払う POL は、そのときの混み具合（ガス代）で大きく変わります。2026-10-20 の本番のデプロイは、約 1.01 POL かかりました（ガス 364 万）。mint 1 件はその約 25 分の 1（0.04 POL 前後）が目安です。運営者のウォレットには、数か月分のガス代（数 POL）だけを入れておきます。
 
    | 操作 | ガス |
    | --- | --- |
@@ -46,7 +46,7 @@ package.json     テスト用
 2. `contracts` フォルダを右クリック →「New File」→ `BeerJugSBT.sol` と入力
 3. このフォルダの [`BeerJugSBT.sol`](BeerJugSBT.sol) の中身を全部コピーして、貼り付ける
 
-`@openzeppelin/contracts/...` の import は、Remix が自動で取ってきます（左に `.deps` フォルダができる）。
+`@openzeppelin/contracts/...` の import は、Remix が自動で取ってきます（左に `.deps` フォルダができる）。そのままだと、そのときの最新版を取ってくるので、テストした版と同じにするには、貼り付けたあと import の 5 行を `@openzeppelin/contracts@5.6.1/...` のように書き換えます（例：`import {ERC721} from "@openzeppelin/contracts@5.6.1/token/ERC721/ERC721.sol";`）。
 
 ### 2. コンパイルする
 
@@ -122,10 +122,11 @@ https://polygonscan.com/address/コントラクトのアドレス を開きま�
 
 - 同じアドレス・同じ種類には一度しか出せません。持ち主が消した（burn した）あとも出せません。運営者がうっかり二重に mint しても失敗するように、発行の記録は消さずに残しています
 - 運営者のアカウントの鍵（MetaMask のシークレットリカバリーフレーズ）は誰にも教えないこと。mint と `setImageBase` は運営者のアカウントだけができます
-- `renounceOwnership` は押さないこと（運営者がいなくなり、二度と mint できなくなる）。運営者を別のアカウントに移すときは `transferOwnership`
+- `renounceOwnership` は押さないこと（運営者がいなくなり、二度と mint できなくなる）。運営者を別のアカウントに移すときは `transferOwnership`。**宛先は 1 文字でも間違えると二度と戻せない**ので、送る前に宛先のアドレスを 2 回（できれば先頭と末尾の 6 文字ずつ声に出して）確かめる
+- Mac のスクリプト（`deploy.mjs`・`verify.mjs`・mint 用のスクリプト）で秘密鍵を使うときは、`contracts/.env` を**使うときだけ作り、終わったら消す**。`.env` は git に入らない設定にしてあるが、iCloud Drive・Dropbox などの同期フォルダや、Time Machine などのバックアップに入る場所には置かない。鍵を画面に出したり、チャットに貼ったりしない
 - 画像の置き場所を移したときは、`setImageBase` に新しい URL（末尾は `/`）を入れます。発行済みの分も新しい画像になります
 - 受取アドレス・種類・発行日時は、チェーン上に公開され、消えません。金銭的な価値はありません
-- ガス代は少額です（上の目安）
+- ガス代は混み具合で変わります（上の目安）
 
 ## テスト
 
@@ -137,4 +138,4 @@ npm test
 
 npm の solc（solc-js、コンパイラが入っている）でコンパイルし、@ethereumjs/evm の上で動かして確かめます。`npm install` のあとは、ネットにつながなくても動きます。
 コンパイルの設定は Remix の初期設定（最適化なし、EVM Version は default）に合わせてあります。
-テストした版：solc 0.8.29、OpenZeppelin Contracts 5.6.1（5.7.0 でも通る）。Remix は import したときの最新の OpenZeppelin Contracts を取ってきます。
+テストした版：solc 0.8.29、OpenZeppelin Contracts 5.6.1（5.7.0 でも通る）。Remix は import したときの最新の OpenZeppelin Contracts を取ってきます（上の「1. ファイルを作る」のとおり、版を書いておくと同じ版になります）。
